@@ -2,6 +2,7 @@ const { BUTTONS, USER_STATES } = require('../config/constants');
 const { PROMPTS } = require('../config/prompts');
 const { getMainKeyboard, getBloggersKeyboard, getBusinessKeyboard } = require('../keyboards');
 const { sendWithOptionalKeyboard, getPhotoUrl, withTyping } = require('../utils/vk');
+const { createRateLimiter } = require('../utils/rateLimiter');
 
 function registerMessageHandler(vk, services) {
   const { generateText, generateHedgehogReply, generatePostFromPhoto } = services;
@@ -9,7 +10,7 @@ function registerMessageHandler(vk, services) {
 
   // Ограничение частоты: не более одного платного запроса к GigaChat на пользователя в RATE_LIMIT_MS.
   const RATE_LIMIT_MS = 3000;
-  const lastRequestAt = new Map();
+  const rateLimiter = createRateLimiter(RATE_LIMIT_MS);
 
   // Состояния пользователей устаревают, чтобы Map не рос бесконечно.
   const USER_STATE_TTL_MS = 30 * 60 * 1000;
@@ -21,11 +22,7 @@ function registerMessageHandler(vk, services) {
         userStates.delete(senderId);
       }
     }
-    for (const [senderId, timestamp] of lastRequestAt) {
-      if (now - timestamp > RATE_LIMIT_MS) {
-        lastRequestAt.delete(senderId);
-      }
-    }
+    rateLimiter.prune(now);
   }, USER_STATE_CLEANUP_INTERVAL_MS);
   stateCleanupIntervalId.unref?.();
 
@@ -47,20 +44,8 @@ function registerMessageHandler(vk, services) {
     userStates.delete(senderId);
   }
 
-  function isRateLimited(senderId) {
-    const now = Date.now();
-    const last = lastRequestAt.get(senderId) || 0;
-
-    if (now - last < RATE_LIMIT_MS) {
-      return true;
-    }
-
-    lastRequestAt.set(senderId, now);
-    return false;
-  }
-
   async function runGeneration(context, keyboard, task) {
-    if (isRateLimited(context.senderId)) {
+    if (rateLimiter.isLimited(context.senderId)) {
       await sendWithOptionalKeyboard(context, 'Слишком часто — подождите пару секунд и попробуйте ещё раз.', keyboard);
       return;
     }
