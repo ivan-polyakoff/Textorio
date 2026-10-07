@@ -32,9 +32,6 @@ Textorio — это бот для ВКонтакте, который помог�
    GIGACHAT_AUTH_URL=https://ngw.devices.sberbank.ru:9443/api/v2/oauth
    GIGACHAT_API_URL=https://gigachat.devices.sberbank.ru/api/v1/chat/completions
    GIGACHAT_FILES_URL=https://gigachat.devices.sberbank.ru/api/v1/files
-   GIGACHAT_TEXT_MODEL=GigaChat
-   GIGACHAT_VISION_MODEL=GigaChat-Pro
-   PORT=3000
    ```
 4. Запустите бота: `npm start`
 
@@ -62,7 +59,6 @@ Textorio — это бот для ВКонтакте, который помог�
 
 - Node.js
 - VK IO (для работы с API ВКонтакте)
-- Express (для веб-сервера)
 - Axios (для запросов к Гигачат)
 - Гигачат (для генерации текста)
 

@@ -7,46 +7,109 @@ function registerMessageHandler(vk, services) {
   const { generateText, generateHedgehogReply, generatePostFromPhoto } = services;
   const userStates = new Map();
 
+  // Ограничение частоты: не более одного платного запроса к GigaChat на пользователя в RATE_LIMIT_MS.
+  const RATE_LIMIT_MS = 3000;
+  const lastRequestAt = new Map();
+
+  // Состояния пользователей устаревают, чтобы Map не рос бесконечно.
+  const USER_STATE_TTL_MS = 30 * 60 * 1000;
+  const USER_STATE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+  const stateCleanupIntervalId = setInterval(() => {
+    const now = Date.now();
+    for (const [senderId, state] of userStates) {
+      if (now - state.updatedAt > USER_STATE_TTL_MS) {
+        userStates.delete(senderId);
+      }
+    }
+    for (const [senderId, timestamp] of lastRequestAt) {
+      if (now - timestamp > RATE_LIMIT_MS) {
+        lastRequestAt.delete(senderId);
+      }
+    }
+  }, USER_STATE_CLEANUP_INTERVAL_MS);
+  stateCleanupIntervalId.unref?.();
+
+  function getUserState(senderId) {
+    const state = userStates.get(senderId);
+    if (!state) return null;
+    if (Date.now() - state.updatedAt > USER_STATE_TTL_MS) {
+      userStates.delete(senderId);
+      return null;
+    }
+    return state;
+  }
+
+  function setUserState(senderId, value, extra = {}) {
+    userStates.set(senderId, { value, updatedAt: Date.now(), ...extra });
+  }
+
+  function deleteUserState(senderId) {
+    userStates.delete(senderId);
+  }
+
+  function isRateLimited(senderId) {
+    const now = Date.now();
+    const last = lastRequestAt.get(senderId) || 0;
+
+    if (now - last < RATE_LIMIT_MS) {
+      return true;
+    }
+
+    lastRequestAt.set(senderId, now);
+    return false;
+  }
+
+  async function runGeneration(context, keyboard, task) {
+    if (isRateLimited(context.senderId)) {
+      await sendWithOptionalKeyboard(context, 'Слишком часто — подождите пару секунд и попробуйте ещё раз.', keyboard);
+      return;
+    }
+
+    const reply = await withTyping(vk, context, task);
+    await sendWithOptionalKeyboard(context, reply, keyboard);
+  }
+
   vk.updates.on('message_new', async (context) => {
     try {
       const text = context.text?.trim() || '';
       const hasAttachments = context.attachments.length > 0;
       if (!text && !hasAttachments) return;
 
-      console.log(`Получено сообщение от ${context.senderId}: ${text}`);
+      // Не логируем содержимое сообщений пользователей.
+      console.log(`Сообщение от ${context.senderId}: длина ${text.length}${hasAttachments ? `, вложений: ${context.attachments.length}` : ''}`);
 
       if (text === '/start' || text === BUTTONS.MAIN_MENU) {
-        userStates.delete(context.senderId);
+        deleteUserState(context.senderId);
         await sendWithOptionalKeyboard(context, 'Привет! Я Textorio — бот для создания и улучшения текстов.\n\nВыберите, для кого нужен текст:', getMainKeyboard());
         return;
       }
 
       if (text === BUTTONS.BLOGGERS) {
-        userStates.delete(context.senderId);
+        deleteUserState(context.senderId);
         await sendWithOptionalKeyboard(context, 'Раздел для блогеров. Выберите задачу.', getBloggersKeyboard());
         return;
       }
 
       if (text === BUTTONS.BUSINESS) {
-        userStates.delete(context.senderId);
+        deleteUserState(context.senderId);
         await sendWithOptionalKeyboard(context, 'Раздел для малого бизнеса. Выберите задачу.', getBusinessKeyboard());
         return;
       }
 
       if (text === BUTTONS.STYLE) {
-        userStates.set(context.senderId, USER_STATES.WAITING_STYLE_TEXT);
+        setUserState(context.senderId, USER_STATES.WAITING_STYLE_TEXT);
         await sendWithOptionalKeyboard(context, 'Пришлите текст, который нужно улучшить.', getBloggersKeyboard());
         return;
       }
 
       if (text === BUTTONS.POST) {
-        userStates.set(context.senderId, USER_STATES.WAITING_POST_TOPIC);
+        setUserState(context.senderId, USER_STATES.WAITING_POST_TOPIC);
         await sendWithOptionalKeyboard(context, 'Напишите тему поста.', getBloggersKeyboard());
         return;
       }
 
       if (text === BUTTONS.PHOTO_POST) {
-        userStates.set(context.senderId, USER_STATES.WAITING_POST_PHOTO);
+        setUserState(context.senderId, USER_STATES.WAITING_POST_PHOTO);
         await sendWithOptionalKeyboard(context, 'Пришлите фото, по которому нужно написать пост. Можно добавить короткий комментарий к фото.', getBloggersKeyboard());
         return;
       }
@@ -57,127 +120,128 @@ function registerMessageHandler(vk, services) {
       }
 
       if (text === BUTTONS.PRODUCT) {
-        userStates.set(context.senderId, USER_STATES.WAITING_PRODUCT_DESCRIPTION);
+        setUserState(context.senderId, USER_STATES.WAITING_PRODUCT_DESCRIPTION);
         await sendWithOptionalKeyboard(context, 'Опишите товар: что продаем, для кого и какие главные преимущества.', getBusinessKeyboard());
         return;
       }
 
       if (text === BUTTONS.AD) {
-        userStates.set(context.senderId, USER_STATES.WAITING_AD_DESCRIPTION);
+        setUserState(context.senderId, USER_STATES.WAITING_AD_DESCRIPTION);
         await sendWithOptionalKeyboard(context, 'Опишите вводные для рекламы: продукт, аудитория, акция или главный оффер.', getBusinessKeyboard());
         return;
       }
 
       if (text === BUTTONS.CLIENT_REPLY) {
-        userStates.set(context.senderId, USER_STATES.WAITING_CLIENT_REPLY_SITUATION);
+        setUserState(context.senderId, USER_STATES.WAITING_CLIENT_REPLY_SITUATION);
         await sendWithOptionalKeyboard(context, 'Опишите ситуацию: что написал клиент и какой тон ответа нужен.', getBusinessKeyboard());
         return;
       }
 
-      const userState = userStates.get(context.senderId);
+      const userState = getUserState(context.senderId);
+      const stateValue = userState?.value;
 
-      if (userState === USER_STATES.WAITING_STYLE_TEXT) {
+      if (stateValue === USER_STATES.WAITING_STYLE_TEXT) {
         if (!text) {
           await sendWithOptionalKeyboard(context, 'Пришлите текст, который нужно улучшить.', getBloggersKeyboard());
           return;
         }
 
-        userStates.delete(context.senderId);
-        const improvedText = await withTyping(vk, context, () => generateText(PROMPTS.styleImprove(text)));
-        await sendWithOptionalKeyboard(context, improvedText, getBloggersKeyboard());
+        deleteUserState(context.senderId);
+        await runGeneration(context, getBloggersKeyboard(), () => generateText(PROMPTS.styleImprove(text)));
         return;
       }
 
-      if (userState === USER_STATES.WAITING_POST_TOPIC) {
+      if (stateValue === USER_STATES.WAITING_POST_TOPIC) {
         if (!text) {
           await sendWithOptionalKeyboard(context, 'Напишите тему поста текстом или выберите "Пост по фото".', getBloggersKeyboard());
           return;
         }
 
-        userStates.delete(context.senderId);
-        const postText = await withTyping(vk, context, () => generateText(PROMPTS.postByTopic(text)));
-        await sendWithOptionalKeyboard(context, postText, getBloggersKeyboard());
+        deleteUserState(context.senderId);
+        await runGeneration(context, getBloggersKeyboard(), () => generateText(PROMPTS.postByTopic(text)));
         return;
       }
 
-      if (userState === USER_STATES.WAITING_POST_PHOTO) {
+      if (stateValue === USER_STATES.WAITING_POST_PHOTO) {
         const photoUrl = getPhotoUrl(context);
 
         if (!photoUrl) {
+          if (text) {
+            // Пользователь прислал комментарий раньше фото — сохраняем его.
+            setUserState(context.senderId, USER_STATES.WAITING_POST_PHOTO, { caption: text });
+            await sendWithOptionalKeyboard(context, 'Комментарий сохранил. Теперь пришлите фото, по которому нужно написать пост.', getBloggersKeyboard());
+            return;
+          }
+
           await sendWithOptionalKeyboard(context, 'Не вижу фото в сообщении. Пришлите изображение одним сообщением.', getBloggersKeyboard());
           return;
         }
 
-        userStates.delete(context.senderId);
-        const postText = await withTyping(vk, context, () => generatePostFromPhoto(photoUrl, text));
-        await sendWithOptionalKeyboard(context, postText, getBloggersKeyboard());
+        const caption = text || userState.caption || '';
+        deleteUserState(context.senderId);
+        await runGeneration(context, getBloggersKeyboard(), () => generatePostFromPhoto(photoUrl, caption));
         return;
       }
 
-      if (userState === USER_STATES.WAITING_PRODUCT_DESCRIPTION) {
+      if (stateValue === USER_STATES.WAITING_PRODUCT_DESCRIPTION) {
         if (!text) {
           await sendWithOptionalKeyboard(context, 'Опишите товар текстом: что продаем, для кого и какие главные преимущества.', getBusinessKeyboard());
           return;
         }
 
-        userStates.delete(context.senderId);
-        const productText = await withTyping(vk, context, () => generateText(PROMPTS.productDescription(text)));
-        await sendWithOptionalKeyboard(context, productText, getBusinessKeyboard());
+        deleteUserState(context.senderId);
+        await runGeneration(context, getBusinessKeyboard(), () => generateText(PROMPTS.productDescription(text)));
         return;
       }
 
-      if (userState === USER_STATES.WAITING_AD_DESCRIPTION) {
+      if (stateValue === USER_STATES.WAITING_AD_DESCRIPTION) {
         if (!text) {
           await sendWithOptionalKeyboard(context, 'Опишите вводные для рекламы текстом: продукт, аудитория, акция или главный оффер.', getBusinessKeyboard());
           return;
         }
 
-        userStates.delete(context.senderId);
-        const adText = await withTyping(vk, context, () => generateText(PROMPTS.adText(text)));
-        await sendWithOptionalKeyboard(context, adText, getBusinessKeyboard());
+        deleteUserState(context.senderId);
+        await runGeneration(context, getBusinessKeyboard(), () => generateText(PROMPTS.adText(text)));
         return;
       }
 
-      if (userState === USER_STATES.WAITING_CLIENT_REPLY_SITUATION) {
+      if (stateValue === USER_STATES.WAITING_CLIENT_REPLY_SITUATION) {
         if (!text) {
           await sendWithOptionalKeyboard(context, 'Опишите ситуацию текстом: что написал клиент и какой тон ответа нужен.', getBusinessKeyboard());
           return;
         }
 
-        userStates.delete(context.senderId);
-        const replyText = await withTyping(vk, context, () => generateText(PROMPTS.clientReply(text)));
-        await sendWithOptionalKeyboard(context, replyText, getBusinessKeyboard());
+        deleteUserState(context.senderId);
+        await runGeneration(context, getBusinessKeyboard(), () => generateText(PROMPTS.clientReply(text)));
         return;
       }
 
       if (text === '/стиль') {
-        userStates.set(context.senderId, USER_STATES.WAITING_STYLE_TEXT);
+        setUserState(context.senderId, USER_STATES.WAITING_STYLE_TEXT);
         await sendWithOptionalKeyboard(context, 'Пришлите текст, который нужно улучшить.', getBloggersKeyboard());
         return;
       }
 
       if (text.startsWith('/стиль ')) {
         const inputText = text.slice(7).trim();
-        const improvedText = await withTyping(vk, context, () => generateText(PROMPTS.styleImprove(inputText)));
-        await sendWithOptionalKeyboard(context, improvedText, getBloggersKeyboard());
+        await runGeneration(context, getBloggersKeyboard(), () => generateText(PROMPTS.styleImprove(inputText)));
         return;
       }
 
       if (text === '/пост') {
-        userStates.set(context.senderId, USER_STATES.WAITING_POST_TOPIC);
+        setUserState(context.senderId, USER_STATES.WAITING_POST_TOPIC);
         await sendWithOptionalKeyboard(context, 'Напишите тему поста.', getBloggersKeyboard());
         return;
       }
 
       if (text.startsWith('/пост ')) {
         const topic = text.slice(6).trim();
-        const postText = await withTyping(vk, context, () => generateText(PROMPTS.postByTopic(topic)));
-        await sendWithOptionalKeyboard(context, postText, getBloggersKeyboard());
+        await runGeneration(context, getBloggersKeyboard(), () => generateText(PROMPTS.postByTopic(topic)));
         return;
       }
 
       if (text === '/фотопост') {
-        userStates.set(context.senderId, USER_STATES.WAITING_POST_PHOTO);
+        setUserState(context.senderId, USER_STATES.WAITING_POST_PHOTO);
         await sendWithOptionalKeyboard(context, 'Пришлите фото, по которому нужно написать пост. Можно добавить короткий комментарий к фото.', getBloggersKeyboard());
         return;
       }
@@ -186,59 +250,54 @@ function registerMessageHandler(vk, services) {
         const photoUrl = getPhotoUrl(context);
 
         if (!photoUrl) {
-          userStates.set(context.senderId, USER_STATES.WAITING_POST_PHOTO);
+          setUserState(context.senderId, USER_STATES.WAITING_POST_PHOTO, { caption: text.slice(10).trim() });
           await sendWithOptionalKeyboard(context, 'Пришлите фото следующим сообщением. Комментарий я учту.', getBloggersKeyboard());
           return;
         }
 
         const caption = text.slice(10).trim();
-        const postText = await withTyping(vk, context, () => generatePostFromPhoto(photoUrl, caption));
-        await sendWithOptionalKeyboard(context, postText, getBloggersKeyboard());
+        await runGeneration(context, getBloggersKeyboard(), () => generatePostFromPhoto(photoUrl, caption));
         return;
       }
 
       if (text === '/товар') {
-        userStates.set(context.senderId, USER_STATES.WAITING_PRODUCT_DESCRIPTION);
+        setUserState(context.senderId, USER_STATES.WAITING_PRODUCT_DESCRIPTION);
         await sendWithOptionalKeyboard(context, 'Опишите товар: что продаем, для кого и какие главные преимущества.', getBusinessKeyboard());
         return;
       }
 
       if (text.startsWith('/товар ')) {
         const description = text.slice(7).trim();
-        const productText = await withTyping(vk, context, () => generateText(PROMPTS.productDescription(description)));
-        await sendWithOptionalKeyboard(context, productText, getBusinessKeyboard());
+        await runGeneration(context, getBusinessKeyboard(), () => generateText(PROMPTS.productDescription(description)));
         return;
       }
 
       if (text === '/реклама') {
-        userStates.set(context.senderId, USER_STATES.WAITING_AD_DESCRIPTION);
+        setUserState(context.senderId, USER_STATES.WAITING_AD_DESCRIPTION);
         await sendWithOptionalKeyboard(context, 'Опишите вводные для рекламы: продукт, аудитория, акция или главный оффер.', getBusinessKeyboard());
         return;
       }
 
       if (text.startsWith('/реклама ')) {
         const description = text.slice(9).trim();
-        const adText = await withTyping(vk, context, () => generateText(PROMPTS.adText(description)));
-        await sendWithOptionalKeyboard(context, adText, getBusinessKeyboard());
+        await runGeneration(context, getBusinessKeyboard(), () => generateText(PROMPTS.adText(description)));
         return;
       }
 
       if (text === '/ответ') {
-        userStates.set(context.senderId, USER_STATES.WAITING_CLIENT_REPLY_SITUATION);
+        setUserState(context.senderId, USER_STATES.WAITING_CLIENT_REPLY_SITUATION);
         await sendWithOptionalKeyboard(context, 'Опишите ситуацию: что написал клиент и какой тон ответа нужен.', getBusinessKeyboard());
         return;
       }
 
       if (text.startsWith('/ответ ')) {
         const situation = text.slice(7).trim();
-        const replyText = await withTyping(vk, context, () => generateText(PROMPTS.clientReply(situation)));
-        await sendWithOptionalKeyboard(context, replyText, getBusinessKeyboard());
+        await runGeneration(context, getBusinessKeyboard(), () => generateText(PROMPTS.clientReply(situation)));
         return;
       }
 
       if (text) {
-        const hedgehogReply = await withTyping(vk, context, () => generateHedgehogReply(text));
-        await sendWithOptionalKeyboard(context, hedgehogReply, getMainKeyboard());
+        await runGeneration(context, getMainKeyboard(), () => generateHedgehogReply(text));
         return;
       }
 

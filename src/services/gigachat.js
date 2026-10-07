@@ -31,6 +31,7 @@ function createGigaChatService(config) {
 
   let accessTokenCache = null;
   let tokenExpiryTime = 0;
+  let tokenRequestPromise = null;
 
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -90,7 +91,7 @@ function createGigaChatService(config) {
         throw new Error('Не задан GIGACHAT_API_KEY в .env');
       }
 
-      const body = new URLSearchParams({ scope: 'GIGACHAT_API_PERS' });
+      const body = new URLSearchParams({ scope: config.scope });
 
       const response = await requestWithRetry('Получение токена GigaChat', () => gigachatClient.post(config.authUrl, body.toString(), {
         headers: {
@@ -112,6 +113,11 @@ function createGigaChatService(config) {
     }
   }
 
+  function invalidateAccessToken() {
+    accessTokenCache = null;
+    tokenExpiryTime = 0;
+  }
+
   async function getCachedAccessToken() {
     const now = Date.now();
 
@@ -119,16 +125,43 @@ function createGigaChatService(config) {
       return accessTokenCache;
     }
 
-    const tokenData = await getAccessToken();
-    accessTokenCache = tokenData.access_token;
+    // Защита от параллельных обновлений: все запросы ждут один OAuth-запрос.
+    if (!tokenRequestPromise) {
+      tokenRequestPromise = getAccessToken()
+        .then((tokenData) => {
+          accessTokenCache = tokenData.access_token;
 
-    if (typeof tokenData.expires_at === 'number') {
-      tokenExpiryTime = tokenData.expires_at - (5 * 60 * 1000);
-    } else {
-      tokenExpiryTime = now + (25 * 60 * 1000);
+          if (typeof tokenData.expires_at === 'number') {
+            tokenExpiryTime = tokenData.expires_at - (5 * 60 * 1000);
+          } else {
+            tokenExpiryTime = Date.now() + (25 * 60 * 1000);
+          }
+
+          return accessTokenCache;
+        })
+        .finally(() => {
+          tokenRequestPromise = null;
+        });
     }
 
-    return accessTokenCache;
+    return tokenRequestPromise;
+  }
+
+  // Обертка для запросов с Bearer-токеном: при 401 обновляет токен и повторяет запрос один раз.
+  async function requestWithTokenAuth(label, requestFn) {
+    try {
+      const accessToken = await getCachedAccessToken();
+      return await requestWithRetry(label, () => requestFn(accessToken));
+    } catch (error) {
+      if (error?.response?.status !== 401) {
+        throw error;
+      }
+
+      console.warn(`${label}: GigaChat вернул 401, обновляю access token и повторяю запрос.`);
+      invalidateAccessToken();
+      const accessToken = await getCachedAccessToken();
+      return requestWithRetry(label, () => requestFn(accessToken));
+    }
   }
 
   function getFileExtensionFromContentType(contentType) {
@@ -145,6 +178,7 @@ function createGigaChatService(config) {
         responseType: 'arraybuffer',
         timeout: config.photoDownloadTimeoutMs,
         maxRedirects: 5,
+        maxContentLength: 20 * 1024 * 1024,
         headers: {
           Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
           'User-Agent': 'Mozilla/5.0 TextorioBot/0.1'
@@ -170,7 +204,6 @@ function createGigaChatService(config) {
   }
 
   async function uploadImageToGigaChat(imageUrl) {
-    const accessToken = await getCachedAccessToken();
     const image = await downloadImage(imageUrl);
     const form = new FormData();
     const extension = getFileExtensionFromContentType(image.contentType);
@@ -181,7 +214,7 @@ function createGigaChatService(config) {
     });
     form.append('purpose', 'general');
 
-    const response = await requestWithRetry('Загрузка изображения в GigaChat', () => gigachatClient.post(config.filesUrl, form, {
+    const response = await requestWithTokenAuth('Загрузка изображения в GigaChat', (accessToken) => gigachatClient.post(config.filesUrl, form, {
       headers: {
         ...form.getHeaders(),
         Accept: 'application/json',
@@ -200,9 +233,7 @@ function createGigaChatService(config) {
 
   async function generateText(prompt) {
     try {
-      const accessToken = await getCachedAccessToken();
-
-      const response = await requestWithRetry('Запрос к GigaChat', () => gigachatClient.post(config.apiUrl, {
+      const response = await requestWithTokenAuth('Запрос к GigaChat', (accessToken) => gigachatClient.post(config.apiUrl, {
         messages: [{ role: 'user', content: prompt }],
         model: config.textModel,
         stream: false
@@ -227,11 +258,10 @@ function createGigaChatService(config) {
 
   async function generatePostFromPhoto(imageUrl, caption = '') {
     try {
-      const accessToken = await getCachedAccessToken();
       const fileId = await uploadImageToGigaChat(imageUrl);
       const prompt = PROMPTS.photoPost(caption);
 
-      const response = await requestWithRetry('Запрос к GigaChat Vision', () => gigachatClient.post(config.apiUrl, {
+      const response = await requestWithTokenAuth('Запрос к GigaChat Vision', (accessToken) => gigachatClient.post(config.apiUrl, {
         model: config.visionModel,
         messages: [{ role: 'user', content: prompt, attachments: [fileId] }],
         stream: false
