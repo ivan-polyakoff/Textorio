@@ -4,6 +4,7 @@ const fs = require('fs');
 const FormData = require('form-data');
 const { randomUUID } = require('crypto');
 const { PROMPTS } = require('../config/prompts');
+const { logger } = require('../utils/logger');
 
 function createGigaChatService(config) {
   const gigachatHttpsAgentOptions = {
@@ -77,7 +78,7 @@ function createGigaChatService(config) {
         }
 
         const delayMs = 500 * attempt;
-        console.warn(`${label}: сетевая ошибка ${error.code || error.cause?.code || error.message}. Повтор ${attempt + 1}/${config.retryAttempts} через ${delayMs} мс.`);
+        logger.warn(`${label}: сетевая ошибка ${error.code || error.cause?.code || error.message}. Повтор ${attempt + 1}/${config.retryAttempts} через ${delayMs} мс.`);
         await sleep(delayMs);
       }
     }
@@ -108,7 +109,7 @@ function createGigaChatService(config) {
 
       return response.data;
     } catch (error) {
-      console.error('Ошибка при получении токена доступа:', formatAxiosError(error));
+      logger.error('Ошибка при получении токена доступа:', formatAxiosError(error));
       throw error;
     }
   }
@@ -157,7 +158,7 @@ function createGigaChatService(config) {
         throw error;
       }
 
-      console.warn(`${label}: GigaChat вернул 401, обновляю access token и повторяю запрос.`);
+      logger.warn(`${label}: GigaChat вернул 401, обновляю access token и повторяю запрос.`);
       invalidateAccessToken();
       const accessToken = await getCachedAccessToken();
       return requestWithRetry(label, () => requestFn(accessToken));
@@ -172,39 +173,68 @@ function createGigaChatService(config) {
     return 'jpg';
   }
 
-  async function downloadImage(imageUrl) {
-    try {
-      const response = await axios.get(imageUrl, {
-        responseType: 'arraybuffer',
-        timeout: config.photoDownloadTimeoutMs,
-        maxRedirects: 5,
-        maxContentLength: 20 * 1024 * 1024,
-        headers: {
-          Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-          'User-Agent': 'Mozilla/5.0 TextorioBot/0.1'
-        },
-        validateStatus: (status) => status >= 200 && status < 300
-      });
+  async function downloadImage(urls) {
+    const list = Array.isArray(urls) ? urls : [urls];
+    let lastError;
 
-      const contentType = response.headers['content-type'] || 'image/jpeg';
+    for (let urlIndex = 0; urlIndex < list.length; urlIndex += 1) {
+      const imageUrl = list[urlIndex];
 
-      if (!contentType.startsWith('image/')) {
-        throw new Error(`VK вернул не изображение, content-type: ${contentType}`);
+      // До 3 попыток на URL: 429 у VK CDN обычно краткосрочный.
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        try {
+          const response = await axios.get(imageUrl, {
+            responseType: 'arraybuffer',
+            timeout: config.photoDownloadTimeoutMs,
+            maxRedirects: 5,
+            maxContentLength: 20 * 1024 * 1024,
+            headers: {
+              Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36'
+            },
+            validateStatus: (status) => status >= 200 && status < 300
+          });
+
+          const contentType = response.headers['content-type'] || 'image/jpeg';
+
+          if (!contentType.startsWith('image/')) {
+            throw new Error(`VK вернул не изображение, content-type: ${contentType}`);
+          }
+
+          if (urlIndex > 0 || attempt > 1) {
+            logger.warn(`Фото скачано с попытки ${attempt}, URL ${urlIndex + 1}/${list.length}`);
+          }
+
+          return {
+            buffer: Buffer.from(response.data),
+            contentType
+          };
+        } catch (error) {
+          lastError = error;
+          const url = new URL(imageUrl);
+          const details = error.response ? `HTTP ${error.response.status}` : (error.code || error.cause?.code || error.message);
+
+          const isLastAttempt = attempt === 3;
+          const isRetryable = !error.response || error.response.status === 429 || error.response.status === 403;
+
+          if (!isRetryable || isLastAttempt) {
+            error.stage = 'vk_download';
+            error.message = `Не удалось скачать фото из VK (${url.hostname}): ${details}: ${error.message}`;
+            throw error;
+          }
+
+          const delayMs = 1000 * attempt;
+          logger.warn(`Скачивание фото (${url.hostname}): ${details}. Повтор ${attempt + 1}/3 через ${delayMs} мс.`);
+          await sleep(delayMs);
+        }
       }
-
-      return {
-        buffer: Buffer.from(response.data),
-        contentType
-      };
-    } catch (error) {
-      const url = new URL(imageUrl);
-      error.message = `Не удалось скачать фото из VK (${url.hostname}): ${error.message}`;
-      throw error;
     }
+
+    throw lastError;
   }
 
-  async function uploadImageToGigaChat(imageUrl) {
-    const image = await downloadImage(imageUrl);
+  async function uploadImageToGigaChat(urls) {
+    const image = await downloadImage(urls);
     const form = new FormData();
     const extension = getFileExtensionFromContentType(image.contentType);
 
@@ -247,7 +277,7 @@ function createGigaChatService(config) {
 
       return response.data.choices[0].message.content.trim();
     } catch (error) {
-      console.error('Ошибка при обращении к Гигачат:', formatAxiosError(error));
+      logger.error('Ошибка при обращении к Гигачат:', formatAxiosError(error));
       return 'Извините, произошла ошибка при генерации текста. Попробуйте позже.';
     }
   }
@@ -256,9 +286,9 @@ function createGigaChatService(config) {
     return generateText(PROMPTS.hedgehogReply(userMessage, PROMPTS.hedgehogSystem));
   }
 
-  async function generatePostFromPhoto(imageUrl, caption = '') {
+  async function generatePostFromPhoto(photoUrls, caption = '') {
     try {
-      const fileId = await uploadImageToGigaChat(imageUrl);
+      const fileId = await uploadImageToGigaChat(photoUrls);
       const prompt = PROMPTS.photoPost(caption);
 
       const response = await requestWithTokenAuth('Запрос к GigaChat Vision', (accessToken) => gigachatClient.post(config.apiUrl, {
@@ -275,7 +305,13 @@ function createGigaChatService(config) {
 
       return response.data.choices[0].message.content.trim();
     } catch (error) {
-      console.error('Ошибка при генерации поста по фото:', formatAxiosError(error));
+      if (error.stage === 'vk_download') {
+        logger.error(`Ошибка при генерации поста по фото (этап скачивания фото из VK): ${error.message}`);
+      } else if (error.response) {
+        logger.error(`Ошибка при генерации поста по фото (этап GigaChat): HTTP ${error.response.status}`, formatAxiosError(error));
+      } else {
+        logger.error('Ошибка при генерации поста по фото:', formatAxiosError(error));
+      }
       return 'Извините, не получилось создать пост по фото. Попробуйте позже или пришлите другое изображение.';
     }
   }

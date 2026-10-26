@@ -1,3 +1,5 @@
+const { logger } = require('./logger');
+
 const VK_MESSAGE_MAX_LENGTH = 4096;
 
 function splitMessage(text, maxLength = VK_MESSAGE_MAX_LENGTH) {
@@ -46,7 +48,7 @@ async function sendPart(context, text, keyboard) {
       throw error;
     }
 
-    console.warn('VK не разрешил отправить клавиатуру (код 912). Сообщение отправлено без кнопок.');
+    logger.warn('VK не разрешил отправить клавиатуру (код 912). Сообщение отправлено без кнопок.');
     return context.send(text);
   }
 }
@@ -61,17 +63,27 @@ async function sendWithOptionalKeyboard(context, text, keyboard) {
   }
 }
 
-function getPhotoUrl(context) {
+// Возвращает список URL фото от большего размера к меньшему.
+// Разные размеры лежат на разных серверах CDN — это позволяет
+// переключиться на другой хост при 429/ошибках одного из них.
+function getPhotoUrls(context) {
   const photo = context.attachments.find((attachment) => attachment.type === 'photo');
 
-  if (!photo) return null;
+  if (!photo) return [];
 
   const sizes = photo.sizes || photo.payload?.sizes || [];
-  const biggestSize = sizes
+  const urls = sizes
     .filter((size) => size.url)
-    .sort((first, second) => (second.width * second.height) - (first.width * first.height))[0];
+    .sort((first, second) => (second.width * second.height) - (first.width * first.height))
+    .map((size) => size.url);
 
-  return biggestSize?.url || photo.largeSizeUrl || photo.mediumSizeUrl || photo.smallSizeUrl || null;
+  for (const fallback of [photo.largeSizeUrl, photo.mediumSizeUrl, photo.smallSizeUrl]) {
+    if (fallback && !urls.includes(fallback)) {
+      urls.push(fallback);
+    }
+  }
+
+  return urls;
 }
 
 async function withTyping(vk, context, task) {
@@ -82,7 +94,7 @@ async function withTyping(vk, context, task) {
         peer_id: context.peerId
       });
     } catch (error) {
-      console.warn('Не удалось отправить статус typing:', error.message || error);
+      logger.warn('Не удалось отправить статус typing:', error.message || error);
     }
   };
 
@@ -99,6 +111,6 @@ async function withTyping(vk, context, task) {
 module.exports = {
   splitMessage,
   sendWithOptionalKeyboard,
-  getPhotoUrl,
+  getPhotoUrls,
   withTyping
 };

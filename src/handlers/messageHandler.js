@@ -1,8 +1,9 @@
 const { BUTTONS, USER_STATES } = require('../config/constants');
 const { PROMPTS } = require('../config/prompts');
 const { getMainKeyboard, getBloggersKeyboard, getBusinessKeyboard } = require('../keyboards');
-const { sendWithOptionalKeyboard, getPhotoUrl, withTyping } = require('../utils/vk');
+const { sendWithOptionalKeyboard, getPhotoUrls, withTyping } = require('../utils/vk');
 const { createRateLimiter } = require('../utils/rateLimiter');
+const { logger } = require('../utils/logger');
 
 function registerMessageHandler(vk, services) {
   const { generateText, generateHedgehogReply, generatePostFromPhoto } = services;
@@ -61,7 +62,7 @@ function registerMessageHandler(vk, services) {
       if (!text && !hasAttachments) return;
 
       // Не логируем содержимое сообщений пользователей.
-      console.log(`Сообщение от ${context.senderId}: длина ${text.length}${hasAttachments ? `, вложений: ${context.attachments.length}` : ''}`);
+      logger.log(`Сообщение от ${context.senderId}: длина ${text.length}${hasAttachments ? `, вложений: ${context.attachments.length}` : ''}`);
 
       if (text === '/start' || text === BUTTONS.MAIN_MENU) {
         deleteUserState(context.senderId);
@@ -148,9 +149,9 @@ function registerMessageHandler(vk, services) {
       }
 
       if (stateValue === USER_STATES.WAITING_POST_PHOTO) {
-        const photoUrl = getPhotoUrl(context);
+        const photoUrls = getPhotoUrls(context);
 
-        if (!photoUrl) {
+        if (photoUrls.length === 0) {
           if (text) {
             // Пользователь прислал комментарий раньше фото — сохраняем его.
             setUserState(context.senderId, USER_STATES.WAITING_POST_PHOTO, { caption: text });
@@ -164,7 +165,7 @@ function registerMessageHandler(vk, services) {
 
         const caption = text || userState.caption || '';
         deleteUserState(context.senderId);
-        await runGeneration(context, getBloggersKeyboard(), () => generatePostFromPhoto(photoUrl, caption));
+        await runGeneration(context, getBloggersKeyboard(), () => generatePostFromPhoto(photoUrls, caption));
         return;
       }
 
@@ -232,16 +233,16 @@ function registerMessageHandler(vk, services) {
       }
 
       if (text.startsWith('/фотопост ')) {
-        const photoUrl = getPhotoUrl(context);
+        const photoUrls = getPhotoUrls(context);
 
-        if (!photoUrl) {
+        if (photoUrls.length === 0) {
           setUserState(context.senderId, USER_STATES.WAITING_POST_PHOTO, { caption: text.slice(10).trim() });
           await sendWithOptionalKeyboard(context, 'Пришлите фото следующим сообщением. Комментарий я учту.', getBloggersKeyboard());
           return;
         }
 
         const caption = text.slice(10).trim();
-        await runGeneration(context, getBloggersKeyboard(), () => generatePostFromPhoto(photoUrl, caption));
+        await runGeneration(context, getBloggersKeyboard(), () => generatePostFromPhoto(photoUrls, caption));
         return;
       }
 
@@ -288,11 +289,11 @@ function registerMessageHandler(vk, services) {
 
       await sendWithOptionalKeyboard(context, 'Нажмите кнопку меню или используйте /start.', getMainKeyboard());
     } catch (error) {
-      console.error('Ошибка обработки сообщения:', error);
+      logger.error('Ошибка обработки сообщения:', error);
       try {
         await context.send('Произошла ошибка при обработке вашего запроса. Попробуйте позже.');
       } catch (sendError) {
-        console.error('Не удалось отправить сообщение:', sendError);
+        logger.error('Не удалось отправить сообщение:', sendError);
       }
     }
   });
