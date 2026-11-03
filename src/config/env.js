@@ -17,6 +17,7 @@ const env = {
     visionModel: process.env.GIGACHAT_VISION_MODEL || 'GigaChat-Pro',
     scope: process.env.GIGACHAT_SCOPE || 'GIGACHAT_API_PERS',
     photoDownloadTimeoutMs: Number(process.env.VK_PHOTO_DOWNLOAD_TIMEOUT_MS) || 30000,
+    photoMaxSizeMb: Number(process.env.VK_PHOTO_MAX_SIZE_MB) || 5,
     caBundleFile: process.env.GIGACHAT_CA_BUNDLE_FILE,
     rejectUnauthorized: process.env.GIGACHAT_REJECT_UNAUTHORIZED !== 'false',
     apiKey: process.env.GIGACHAT_API_KEY

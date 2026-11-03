@@ -235,6 +235,15 @@ function createGigaChatService(config) {
 
   async function uploadImageToGigaChat(urls) {
     const image = await downloadImage(urls);
+    const maxBytes = config.photoMaxSizeMb * 1024 * 1024;
+
+    if (image.buffer.length > maxBytes) {
+      const sizeMb = (image.buffer.length / (1024 * 1024)).toFixed(1);
+      const error = new Error(`Фото весит ${sizeMb} МБ, лимит ${config.photoMaxSizeMb} МБ`);
+      error.stage = 'photo_size';
+      throw error;
+    }
+
     const form = new FormData();
     const extension = getFileExtensionFromContentType(image.contentType);
 
@@ -305,6 +314,11 @@ function createGigaChatService(config) {
 
       return response.data.choices[0].message.content.trim();
     } catch (error) {
+      if (error.stage === 'photo_size') {
+        logger.warn(`Отклонено фото: ${error.message}`);
+        return `Фото слишком большое (${error.message.match(/весит ([\d.]+) МБ/)?.[1] || '?'} МБ), максимум ${config.photoMaxSizeMb} МБ. Пришлите, пожалуйста, меньшую версию изображения.`;
+      }
+
       if (error.stage === 'vk_download') {
         logger.error(`Ошибка при генерации поста по фото (этап скачивания фото из VK): ${error.message}`);
       } else if (error.response) {
