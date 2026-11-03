@@ -55,6 +55,134 @@ function registerMessageHandler(vk, services) {
     await sendWithOptionalKeyboard(context, reply, keyboard);
   }
 
+  // --- Декларативные таблицы команд и состояний ---
+
+  const NAVIGATION = [
+    {
+      triggers: ['/start', BUTTONS.MAIN_MENU],
+      keyboard: getMainKeyboard,
+      text: 'Привет! Я Textorio — бот для создания и улучшения текстов.\n\nВыберите, для кого нужен текст:'
+    },
+    {
+      triggers: [BUTTONS.BLOGGERS],
+      keyboard: getBloggersKeyboard,
+      text: 'Раздел для блогеров. Выберите задачу.'
+    },
+    {
+      triggers: [BUTTONS.BUSINESS],
+      keyboard: getBusinessKeyboard,
+      text: 'Раздел для малого бизнеса. Выберите задачу.'
+    }
+  ];
+
+  // Кнопки и команды, не приводящие к запросу к GigaChat.
+  const STATIC_REPLIES = [
+    {
+      triggers: [BUTTONS.STYLE_TRAINING, '/обучить'],
+      keyboard: getBloggersKeyboard,
+      text: 'Обучение стилю пока в разработке. Скоро можно будет прислать примеры текстов, а я буду писать в похожей манере.'
+    }
+  ];
+
+  // Основные сценарии: кнопка/команда → состояние → генерация.
+  // ask — что писать после нажатия кнопки; emptyAsk — если в состоянии пришёл не текст.
+  const FEATURES = [
+    {
+      triggers: [BUTTONS.STYLE, '/стиль'],
+      state: USER_STATES.WAITING_STYLE_TEXT,
+      keyboard: getBloggersKeyboard,
+      ask: 'Пришлите текст, который нужно улучшить.',
+      emptyAsk: 'Пришлите текст, который нужно улучшить.',
+      generate: (input) => generateText(PROMPTS.styleImprove(input))
+    },
+    {
+      triggers: [BUTTONS.POST, '/пост'],
+      state: USER_STATES.WAITING_POST_TOPIC,
+      keyboard: getBloggersKeyboard,
+      ask: 'Напишите тему поста.',
+      emptyAsk: 'Напишите тему поста текстом или выберите "Пост по фото".',
+      generate: (input) => generateText(PROMPTS.postByTopic(input))
+    },
+    {
+      triggers: [BUTTONS.PHOTO_POST, '/фотопост'],
+      state: USER_STATES.WAITING_POST_PHOTO,
+      keyboard: getBloggersKeyboard,
+      ask: 'Пришлите фото, по которому нужно написать пост. Можно добавить короткий комментарий к фото.',
+      handleState: handlePhotoStateMessage,
+      handleArg: handlePhotoArg
+    },
+    {
+      triggers: [BUTTONS.PRODUCT, '/товар'],
+      state: USER_STATES.WAITING_PRODUCT_DESCRIPTION,
+      keyboard: getBusinessKeyboard,
+      ask: 'Опишите товар: что продаем, для кого и какие главные преимущества.',
+      emptyAsk: 'Опишите товар текстом: что продаем, для кого и какие главные преимущества.',
+      generate: (input) => generateText(PROMPTS.productDescription(input))
+    },
+    {
+      triggers: [BUTTONS.AD, '/реклама'],
+      state: USER_STATES.WAITING_AD_DESCRIPTION,
+      keyboard: getBusinessKeyboard,
+      ask: 'Опишите вводные для рекламы: продукт, аудитория, акция или главный оффер.',
+      emptyAsk: 'Опишите вводные для рекламы текстом: продукт, аудитория, акция или главный оффер.',
+      generate: (input) => generateText(PROMPTS.adText(input))
+    },
+    {
+      triggers: [BUTTONS.CLIENT_REPLY, '/ответ'],
+      state: USER_STATES.WAITING_CLIENT_REPLY_SITUATION,
+      keyboard: getBusinessKeyboard,
+      ask: 'Опишите ситуацию: что написал клиент и какой тон ответа нужен.',
+      emptyAsk: 'Опишите ситуацию текстом: что написал клиент и какой тон ответа нужен.',
+      generate: (input) => generateText(PROMPTS.clientReply(input))
+    }
+  ];
+
+  function findFeatureByText(text) {
+    return FEATURES.find((feature) => feature.triggers.includes(text));
+  }
+
+  function findFeatureByPrefix(text) {
+    // По префиксу ищем только среди слэш-команд, чтобы обычный текст
+    // вида «Создать пост про котиков» не перехватывался кнопкой.
+    return FEATURES.find((feature) => feature.triggers.some((trigger) => trigger.startsWith('/') && text.startsWith(`${trigger} `)));
+  }
+
+  function findFeatureByState(stateValue) {
+    return FEATURES.find((feature) => feature.state === stateValue);
+  }
+
+  async function handlePhotoArg(context, arg) {
+    const photoUrls = getPhotoUrls(context);
+
+    if (photoUrls.length === 0) {
+      setUserState(context.senderId, USER_STATES.WAITING_POST_PHOTO, { caption: arg });
+      await sendWithOptionalKeyboard(context, 'Пришлите фото следующим сообщением. Комментарий я учту.', getBloggersKeyboard());
+      return;
+    }
+
+    await runGeneration(context, getBloggersKeyboard(), () => generatePostFromPhoto(photoUrls, arg));
+  }
+
+  async function handlePhotoStateMessage(context, userState) {
+    const photoUrls = getPhotoUrls(context);
+
+    if (photoUrls.length === 0) {
+      if (context.text) {
+        // Пользователь прислал комментарий раньше фото — сохраняем его.
+        setUserState(context.senderId, USER_STATES.WAITING_POST_PHOTO, { caption: context.text });
+        await sendWithOptionalKeyboard(context, 'Комментарий сохранил. Теперь пришлите фото, по которому нужно написать пост.', getBloggersKeyboard());
+        return;
+      }
+
+      await sendWithOptionalKeyboard(context, 'Не вижу фото в сообщении. Пришлите изображение одним сообщением.', getBloggersKeyboard());
+      return;
+    }
+
+    const caption = context.text || userState.caption || '';
+    deleteUserState(context.senderId);
+    await runGeneration(context, getBloggersKeyboard(), () => generatePostFromPhoto(photoUrls, caption));
+  }
+
   vk.updates.on('message_new', async (context) => {
     try {
       const text = context.text?.trim() || '';
@@ -64,224 +192,65 @@ function registerMessageHandler(vk, services) {
       // Не логируем содержимое сообщений пользователей.
       logger.log(`Сообщение от ${context.senderId}: длина ${text.length}${hasAttachments ? `, вложений: ${context.attachments.length}` : ''}`);
 
-      if (text === '/start' || text === BUTTONS.MAIN_MENU) {
+      // 1. Навигация: сбрасывает состояние.
+      const navigation = NAVIGATION.find((item) => item.triggers.includes(text));
+      if (navigation) {
         deleteUserState(context.senderId);
-        await sendWithOptionalKeyboard(context, 'Привет! Я Textorio — бот для создания и улучшения текстов.\n\nВыберите, для кого нужен текст:', getMainKeyboard());
+        await sendWithOptionalKeyboard(context, navigation.text, navigation.keyboard());
         return;
       }
 
-      if (text === BUTTONS.BLOGGERS) {
-        deleteUserState(context.senderId);
-        await sendWithOptionalKeyboard(context, 'Раздел для блогеров. Выберите задачу.', getBloggersKeyboard());
+      // 2. Кнопки без генерации.
+      const staticReply = STATIC_REPLIES.find((item) => item.triggers.includes(text));
+      if (staticReply) {
+        await sendWithOptionalKeyboard(context, staticReply.text, staticReply.keyboard());
         return;
       }
 
-      if (text === BUTTONS.BUSINESS) {
-        deleteUserState(context.senderId);
-        await sendWithOptionalKeyboard(context, 'Раздел для малого бизнеса. Выберите задачу.', getBusinessKeyboard());
-        return;
-      }
-
-      if (text === BUTTONS.STYLE) {
-        setUserState(context.senderId, USER_STATES.WAITING_STYLE_TEXT);
-        await sendWithOptionalKeyboard(context, 'Пришлите текст, который нужно улучшить.', getBloggersKeyboard());
-        return;
-      }
-
-      if (text === BUTTONS.POST) {
-        setUserState(context.senderId, USER_STATES.WAITING_POST_TOPIC);
-        await sendWithOptionalKeyboard(context, 'Напишите тему поста.', getBloggersKeyboard());
-        return;
-      }
-
-      if (text === BUTTONS.PHOTO_POST) {
-        setUserState(context.senderId, USER_STATES.WAITING_POST_PHOTO);
-        await sendWithOptionalKeyboard(context, 'Пришлите фото, по которому нужно написать пост. Можно добавить короткий комментарий к фото.', getBloggersKeyboard());
-        return;
-      }
-
-      if (text === BUTTONS.STYLE_TRAINING || text === '/обучить') {
-        await sendWithOptionalKeyboard(context, 'Обучение стилю пока в разработке. Скоро можно будет прислать примеры текстов, а я буду писать в похожей манере.', getBloggersKeyboard());
-        return;
-      }
-
-      if (text === BUTTONS.PRODUCT) {
-        setUserState(context.senderId, USER_STATES.WAITING_PRODUCT_DESCRIPTION);
-        await sendWithOptionalKeyboard(context, 'Опишите товар: что продаем, для кого и какие главные преимущества.', getBusinessKeyboard());
-        return;
-      }
-
-      if (text === BUTTONS.AD) {
-        setUserState(context.senderId, USER_STATES.WAITING_AD_DESCRIPTION);
-        await sendWithOptionalKeyboard(context, 'Опишите вводные для рекламы: продукт, аудитория, акция или главный оффер.', getBusinessKeyboard());
-        return;
-      }
-
-      if (text === BUTTONS.CLIENT_REPLY) {
-        setUserState(context.senderId, USER_STATES.WAITING_CLIENT_REPLY_SITUATION);
-        await sendWithOptionalKeyboard(context, 'Опишите ситуацию: что написал клиент и какой тон ответа нужен.', getBusinessKeyboard());
+      // 3. Точное совпадение кнопки/команды: ставим состояние и просим ввод.
+      const triggeredFeature = findFeatureByText(text);
+      if (triggeredFeature) {
+        setUserState(context.senderId, triggeredFeature.state);
+        await sendWithOptionalKeyboard(context, triggeredFeature.ask, triggeredFeature.keyboard());
         return;
       }
 
       const userState = getUserState(context.senderId);
-      const stateValue = userState?.value;
 
-      if (stateValue === USER_STATES.WAITING_STYLE_TEXT) {
+      // 4. Сообщение в состоянии ожидания ввода.
+      const stateFeature = userState ? findFeatureByState(userState.value) : null;
+      if (stateFeature) {
+        if (stateFeature.handleState) {
+          await stateFeature.handleState(context, userState);
+          return;
+        }
+
         if (!text) {
-          await sendWithOptionalKeyboard(context, 'Пришлите текст, который нужно улучшить.', getBloggersKeyboard());
+          await sendWithOptionalKeyboard(context, stateFeature.emptyAsk, stateFeature.keyboard());
           return;
         }
 
         deleteUserState(context.senderId);
-        await runGeneration(context, getBloggersKeyboard(), () => generateText(PROMPTS.styleImprove(text)));
+        await runGeneration(context, stateFeature.keyboard(), () => stateFeature.generate(text));
         return;
       }
 
-      if (stateValue === USER_STATES.WAITING_POST_TOPIC) {
-        if (!text) {
-          await sendWithOptionalKeyboard(context, 'Напишите тему поста текстом или выберите "Пост по фото".', getBloggersKeyboard());
+      // 5. Команда с аргументом: "/команда текст" — генерация без состояния.
+      const argFeature = findFeatureByPrefix(text);
+      if (argFeature) {
+        const trigger = argFeature.triggers.find((item) => text.startsWith(`${item} `));
+        const arg = text.slice(trigger.length + 1).trim();
+
+        if (argFeature.handleArg) {
+          await argFeature.handleArg(context, arg);
           return;
         }
 
-        deleteUserState(context.senderId);
-        await runGeneration(context, getBloggersKeyboard(), () => generateText(PROMPTS.postByTopic(text)));
+        await runGeneration(context, argFeature.keyboard(), () => argFeature.generate(arg));
         return;
       }
 
-      if (stateValue === USER_STATES.WAITING_POST_PHOTO) {
-        const photoUrls = getPhotoUrls(context);
-
-        if (photoUrls.length === 0) {
-          if (text) {
-            // Пользователь прислал комментарий раньше фото — сохраняем его.
-            setUserState(context.senderId, USER_STATES.WAITING_POST_PHOTO, { caption: text });
-            await sendWithOptionalKeyboard(context, 'Комментарий сохранил. Теперь пришлите фото, по которому нужно написать пост.', getBloggersKeyboard());
-            return;
-          }
-
-          await sendWithOptionalKeyboard(context, 'Не вижу фото в сообщении. Пришлите изображение одним сообщением.', getBloggersKeyboard());
-          return;
-        }
-
-        const caption = text || userState.caption || '';
-        deleteUserState(context.senderId);
-        await runGeneration(context, getBloggersKeyboard(), () => generatePostFromPhoto(photoUrls, caption));
-        return;
-      }
-
-      if (stateValue === USER_STATES.WAITING_PRODUCT_DESCRIPTION) {
-        if (!text) {
-          await sendWithOptionalKeyboard(context, 'Опишите товар текстом: что продаем, для кого и какие главные преимущества.', getBusinessKeyboard());
-          return;
-        }
-
-        deleteUserState(context.senderId);
-        await runGeneration(context, getBusinessKeyboard(), () => generateText(PROMPTS.productDescription(text)));
-        return;
-      }
-
-      if (stateValue === USER_STATES.WAITING_AD_DESCRIPTION) {
-        if (!text) {
-          await sendWithOptionalKeyboard(context, 'Опишите вводные для рекламы текстом: продукт, аудитория, акция или главный оффер.', getBusinessKeyboard());
-          return;
-        }
-
-        deleteUserState(context.senderId);
-        await runGeneration(context, getBusinessKeyboard(), () => generateText(PROMPTS.adText(text)));
-        return;
-      }
-
-      if (stateValue === USER_STATES.WAITING_CLIENT_REPLY_SITUATION) {
-        if (!text) {
-          await sendWithOptionalKeyboard(context, 'Опишите ситуацию текстом: что написал клиент и какой тон ответа нужен.', getBusinessKeyboard());
-          return;
-        }
-
-        deleteUserState(context.senderId);
-        await runGeneration(context, getBusinessKeyboard(), () => generateText(PROMPTS.clientReply(text)));
-        return;
-      }
-
-      if (text === '/стиль') {
-        setUserState(context.senderId, USER_STATES.WAITING_STYLE_TEXT);
-        await sendWithOptionalKeyboard(context, 'Пришлите текст, который нужно улучшить.', getBloggersKeyboard());
-        return;
-      }
-
-      if (text.startsWith('/стиль ')) {
-        const inputText = text.slice(7).trim();
-        await runGeneration(context, getBloggersKeyboard(), () => generateText(PROMPTS.styleImprove(inputText)));
-        return;
-      }
-
-      if (text === '/пост') {
-        setUserState(context.senderId, USER_STATES.WAITING_POST_TOPIC);
-        await sendWithOptionalKeyboard(context, 'Напишите тему поста.', getBloggersKeyboard());
-        return;
-      }
-
-      if (text.startsWith('/пост ')) {
-        const topic = text.slice(6).trim();
-        await runGeneration(context, getBloggersKeyboard(), () => generateText(PROMPTS.postByTopic(topic)));
-        return;
-      }
-
-      if (text === '/фотопост') {
-        setUserState(context.senderId, USER_STATES.WAITING_POST_PHOTO);
-        await sendWithOptionalKeyboard(context, 'Пришлите фото, по которому нужно написать пост. Можно добавить короткий комментарий к фото.', getBloggersKeyboard());
-        return;
-      }
-
-      if (text.startsWith('/фотопост ')) {
-        const photoUrls = getPhotoUrls(context);
-
-        if (photoUrls.length === 0) {
-          setUserState(context.senderId, USER_STATES.WAITING_POST_PHOTO, { caption: text.slice(10).trim() });
-          await sendWithOptionalKeyboard(context, 'Пришлите фото следующим сообщением. Комментарий я учту.', getBloggersKeyboard());
-          return;
-        }
-
-        const caption = text.slice(10).trim();
-        await runGeneration(context, getBloggersKeyboard(), () => generatePostFromPhoto(photoUrls, caption));
-        return;
-      }
-
-      if (text === '/товар') {
-        setUserState(context.senderId, USER_STATES.WAITING_PRODUCT_DESCRIPTION);
-        await sendWithOptionalKeyboard(context, 'Опишите товар: что продаем, для кого и какие главные преимущества.', getBusinessKeyboard());
-        return;
-      }
-
-      if (text.startsWith('/товар ')) {
-        const description = text.slice(7).trim();
-        await runGeneration(context, getBusinessKeyboard(), () => generateText(PROMPTS.productDescription(description)));
-        return;
-      }
-
-      if (text === '/реклама') {
-        setUserState(context.senderId, USER_STATES.WAITING_AD_DESCRIPTION);
-        await sendWithOptionalKeyboard(context, 'Опишите вводные для рекламы: продукт, аудитория, акция или главный оффер.', getBusinessKeyboard());
-        return;
-      }
-
-      if (text.startsWith('/реклама ')) {
-        const description = text.slice(9).trim();
-        await runGeneration(context, getBusinessKeyboard(), () => generateText(PROMPTS.adText(description)));
-        return;
-      }
-
-      if (text === '/ответ') {
-        setUserState(context.senderId, USER_STATES.WAITING_CLIENT_REPLY_SITUATION);
-        await sendWithOptionalKeyboard(context, 'Опишите ситуацию: что написал клиент и какой тон ответа нужен.', getBusinessKeyboard());
-        return;
-      }
-
-      if (text.startsWith('/ответ ')) {
-        const situation = text.slice(7).trim();
-        await runGeneration(context, getBusinessKeyboard(), () => generateText(PROMPTS.clientReply(situation)));
-        return;
-      }
-
+      // 6. Свободный текст — отвечает Ежик.
       if (text) {
         await runGeneration(context, getMainKeyboard(), () => generateHedgehogReply(text));
         return;
