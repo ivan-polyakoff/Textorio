@@ -1,5 +1,6 @@
 const { BUTTONS, USER_STATES } = require('../config/constants');
 const { PROMPTS } = require('../config/prompts');
+const { getPersona } = require('../config/persona');
 const { getMainKeyboard, getBloggersKeyboard, getBusinessKeyboard } = require('../keyboards');
 const { sendWithOptionalKeyboard, getPhotoUrls, withTyping } = require('../utils/vk');
 const { createRateLimiter } = require('../utils/rateLimiter');
@@ -7,7 +8,9 @@ const { detectIntent } = require('../utils/intentRouter');
 const { logger } = require('../utils/logger');
 
 function registerMessageHandler(vk, services) {
-  const { generateText, generateHedgehogReply, generatePostFromPhoto } = services;
+  const { generateText, generatePersonaReply, generatePostFromPhoto } = services;
+  // Персонаж для приветствия и формулировок; сам диалог ведёт GigaChat с persona.system.
+  const persona = getPersona(process.env.BOT_PERSONA);
   const userStates = new Map();
 
   // Ограничение частоты: не более одного платного запроса к GigaChat на пользователя в RATE_LIMIT_MS.
@@ -199,11 +202,14 @@ function registerMessageHandler(vk, services) {
       // Не логируем содержимое сообщений пользователей.
       logger.log(`Сообщение от ${context.senderId}: длина ${text.length}${hasAttachments ? `, вложений: ${context.attachments.length}` : ''}`);
 
-      // 1. Навигация: сбрасывает состояние.
+      // 1. Навигация: сбрасывает состояние. При /start персонаж представляется.
       const navigation = NAVIGATION.find((item) => item.triggers.includes(text));
       if (navigation) {
         deleteUserState(context.senderId);
-        await sendWithOptionalKeyboard(context, navigation.text, navigation.keyboard());
+        const greeting = navigation.triggers.includes('/start')
+          ? `${navigation.text}\n\n${persona.intro}`
+          : navigation.text;
+        await sendWithOptionalKeyboard(context, greeting, navigation.keyboard());
         return;
       }
 
@@ -285,9 +291,9 @@ function registerMessageHandler(vk, services) {
         }
       }
 
-      // 7. Остальной свободный текст — отвечает Ежик.
+      // 7. Остальной свободный текст — отвечает персонаж бота.
       if (text) {
-        await runGeneration(context, getMainKeyboard(), () => generateHedgehogReply(text));
+        await runGeneration(context, getMainKeyboard(), () => generatePersonaReply(text));
         return;
       }
 

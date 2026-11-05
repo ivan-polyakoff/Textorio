@@ -7,6 +7,7 @@ const vkGroupId = Number.parseInt(process.env.GROUP_ID ?? '', 10);
 const env = {
   vkToken: process.env.VK_GROUP_TOKEN,
   vkGroupId,
+  persona: process.env.BOT_PERSONA || 'hedgehog',
   gigachat: {
     timeoutMs: Number(process.env.GIGACHAT_TIMEOUT_MS) || 30000,
     retryAttempts: Number(process.env.GIGACHAT_RETRY_ATTEMPTS) || 3,

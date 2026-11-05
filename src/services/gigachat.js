@@ -4,9 +4,12 @@ const fs = require('fs');
 const FormData = require('form-data');
 const { randomUUID } = require('crypto');
 const { PROMPTS } = require('../config/prompts');
+const { getPersona } = require('../config/persona');
 const { logger } = require('../utils/logger');
 
 function createGigaChatService(config) {
+  // Персонаж свободного диалога (характер бота), выбирается через BOT_PERSONA.
+  const persona = getPersona(config.persona);
   const gigachatHttpsAgentOptions = {
     keepAlive: false,
     rejectUnauthorized: config.rejectUnauthorized
@@ -291,8 +294,8 @@ function createGigaChatService(config) {
     }
   }
 
-  async function generateHedgehogReply(userMessage) {
-    return generateText(PROMPTS.hedgehogReply(userMessage, PROMPTS.hedgehogSystem));
+  async function generatePersonaReply(userMessage) {
+    return generateText(persona.replyWrapper(userMessage, persona.system));
   }
 
   async function generatePostFromPhoto(photoUrls, caption = '') {
@@ -332,7 +335,7 @@ function createGigaChatService(config) {
 
   return {
     generateText,
-    generateHedgehogReply,
+    generatePersonaReply,
     generatePostFromPhoto
   };
 }
