@@ -17,6 +17,15 @@ const vk = new VK({
   pollingGroupId: env.vkGroupId
 });
 
+// Критические сбои не должны умирать молча: пишем в лог и в stderr.
+process.on('uncaughtException', (error) => {
+  logger.error('Необработанная ошибка (uncaughtException):', error);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  logger.error('Необработанный rejection (unhandledRejection):', reason);
+});
+
 const gigachatService = createGigaChatService(env.gigachat);
 registerMessageHandler(vk, gigachatService);
 
