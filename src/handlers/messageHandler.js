@@ -3,6 +3,7 @@ const { PROMPTS } = require('../config/prompts');
 const { getMainKeyboard, getBloggersKeyboard, getBusinessKeyboard } = require('../keyboards');
 const { sendWithOptionalKeyboard, getPhotoUrls, withTyping } = require('../utils/vk');
 const { createRateLimiter } = require('../utils/rateLimiter');
+const { detectIntent } = require('../utils/intentRouter');
 const { logger } = require('../utils/logger');
 
 function registerMessageHandler(vk, services) {
@@ -89,6 +90,7 @@ function registerMessageHandler(vk, services) {
   const FEATURES = [
     {
       triggers: [BUTTONS.STYLE, '/стиль'],
+      intent: 'style_improve',
       state: USER_STATES.WAITING_STYLE_TEXT,
       keyboard: getBloggersKeyboard,
       ask: 'Пришлите текст, который нужно улучшить.',
@@ -97,6 +99,7 @@ function registerMessageHandler(vk, services) {
     },
     {
       triggers: [BUTTONS.POST, '/пост'],
+      intent: 'post_topic',
       state: USER_STATES.WAITING_POST_TOPIC,
       keyboard: getBloggersKeyboard,
       ask: 'Напишите тему поста.',
@@ -105,6 +108,7 @@ function registerMessageHandler(vk, services) {
     },
     {
       triggers: [BUTTONS.PHOTO_POST, '/фотопост'],
+      intent: 'photo_post',
       state: USER_STATES.WAITING_POST_PHOTO,
       keyboard: getBloggersKeyboard,
       ask: 'Пришлите фото, по которому нужно написать пост. Можно добавить короткий комментарий к фото.',
@@ -113,6 +117,7 @@ function registerMessageHandler(vk, services) {
     },
     {
       triggers: [BUTTONS.PRODUCT, '/товар'],
+      intent: 'product_description',
       state: USER_STATES.WAITING_PRODUCT_DESCRIPTION,
       keyboard: getBusinessKeyboard,
       ask: 'Опишите товар: что продаем, для кого и какие главные преимущества.',
@@ -121,6 +126,7 @@ function registerMessageHandler(vk, services) {
     },
     {
       triggers: [BUTTONS.AD, '/реклама'],
+      intent: 'ad_text',
       state: USER_STATES.WAITING_AD_DESCRIPTION,
       keyboard: getBusinessKeyboard,
       ask: 'Опишите вводные для рекламы: продукт, аудитория, акция или главный оффер.',
@@ -129,6 +135,7 @@ function registerMessageHandler(vk, services) {
     },
     {
       triggers: [BUTTONS.CLIENT_REPLY, '/ответ'],
+      intent: 'client_reply',
       state: USER_STATES.WAITING_CLIENT_REPLY_SITUATION,
       keyboard: getBusinessKeyboard,
       ask: 'Опишите ситуацию: что написал клиент и какой тон ответа нужен.',
@@ -250,7 +257,35 @@ function registerMessageHandler(vk, services) {
         return;
       }
 
-      // 6. Свободный текст — отвечает Ежик.
+      // 6. Интенты в свободном тексте: «улучши …», «напиши пост про …» —
+      // работают как нажатие соответствующей кнопки.
+      const detected = text ? detectIntent(text) : null;
+      if (detected) {
+        const intentFeature = findFeatureByState(
+          FEATURES.find((feature) => feature.intent === detected.intent)?.state
+        );
+
+        if (intentFeature) {
+          if (detected.argument) {
+            // Аргумент уже есть — генерируем сразу, без состояния.
+            if (intentFeature.handleArg && detected.intent === 'photo_post') {
+              await intentFeature.handleArg(context, detected.argument);
+              return;
+            }
+
+            deleteUserState(context.senderId);
+            await runGeneration(context, intentFeature.keyboard(), () => intentFeature.generate(detected.argument));
+            return;
+          }
+
+          // Аргумента нет — как при нажатии кнопки: просим ввод.
+          setUserState(context.senderId, intentFeature.state);
+          await sendWithOptionalKeyboard(context, intentFeature.ask, intentFeature.keyboard());
+          return;
+        }
+      }
+
+      // 7. Остальной свободный текст — отвечает Ежик.
       if (text) {
         await runGeneration(context, getMainKeyboard(), () => generateHedgehogReply(text));
         return;
