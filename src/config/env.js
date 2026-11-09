@@ -9,6 +9,7 @@ const env = {
   vkGroupId,
   persona: process.env.BOT_PERSONA || 'hedgehog',
   aiProvider: process.env.AI_PROVIDER || 'gigachat',
+  skillPacks: process.env.SKILL_PACKS || '',
   // Настройки фото — политика приложения, общая для всех провайдеров.
   photoDownloadTimeoutMs: Number(process.env.VK_PHOTO_DOWNLOAD_TIMEOUT_MS) || 30000,
   photoMaxSizeMb: Number(process.env.VK_PHOTO_MAX_SIZE_MB) || 5,

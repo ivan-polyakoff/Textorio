@@ -1,37 +1,19 @@
-// Сервис-ассистент: связывает персону, промпты скиллов и AI-провайдер.
-// Провайдер — любой, отвечающий контракту src/providers/provider.js
-// (chat / vision / capabilities). Специфика шлюза сюда не просачивается.
+// Сервис-ассистент: транспортные операции над фото (скачивание из VK),
+// общие для всех скиллов. Генерация переехала в core/engine.js и провайдер.
 
-const { PROMPTS } = require('../config/prompts');
-const { getPersona } = require('../config/persona');
+const axios = require('axios');
 const { logger } = require('../utils/logger');
 
 const VK_PHOTO_MAX_BYTES = 20 * 1024 * 1024; // ограничение axios при скачивании
 
-function createAssistantService(provider, config) {
-  // Персонаж свободного диалога (характер бота), выбирается через BOT_PERSONA.
-  const persona = getPersona(config.persona);
-  // Настройки фото лежат на верхнем уровне env (общие для всех провайдеров).
-  const photoConfig = {
-    downloadTimeoutMs: config.photoDownloadTimeoutMs,
-    maxSizeMb: config.photoMaxSizeMb
-  };
-
-  async function generateText(prompt) {
-    return provider.chat(prompt);
-  }
-
-  async function generatePersonaReply(userMessage) {
-    return provider.chat(persona.replyWrapper(userMessage, persona.system));
-  }
+function createAssistantService(config) {
+  const photoMaxSizeMb = config.photoMaxSizeMb;
 
   // Скачивание фото из VK — транспортная задача, провайдеру передаются байты.
   // Размер проверяется здесь же: лимит — политика приложения, а не шлюза.
   async function downloadImage(urls) {
-    const axios = require('axios');
     const list = Array.isArray(urls) ? urls : [urls];
     let lastError;
-    let downloaded = null;
 
     for (let urlIndex = 0; urlIndex < list.length; urlIndex += 1) {
       const imageUrl = list[urlIndex];
@@ -41,7 +23,7 @@ function createAssistantService(provider, config) {
         try {
           const response = await axios.get(imageUrl, {
             responseType: 'arraybuffer',
-            timeout: photoConfig.downloadTimeoutMs,
+            timeout: config.photoDownloadTimeoutMs,
             maxRedirects: 5,
             maxContentLength: VK_PHOTO_MAX_BYTES,
             headers: {
@@ -61,12 +43,12 @@ function createAssistantService(provider, config) {
             logger.warn(`Фото скачано с попытки ${attempt}, URL ${urlIndex + 1}/${list.length}`);
           }
 
-          downloaded = {
+          const downloaded = {
             buffer: Buffer.from(response.data),
             contentType
           };
 
-          const maxBytes = photoConfig.maxSizeMb * 1024 * 1024;
+          const maxBytes = config.photoMaxSizeMb * 1024 * 1024;
 
           if (downloaded.buffer.length > maxBytes) {
             const sizeMb = (downloaded.buffer.length / (1024 * 1024)).toFixed(1);
@@ -105,33 +87,9 @@ function createAssistantService(provider, config) {
     throw lastError;
   }
 
-  async function generatePostFromPhoto(photoUrls, caption = '') {
-    try {
-      const image = await downloadImage(photoUrls);
-      const prompt = PROMPTS.photoPost(caption);
-
-      return await provider.vision(image.buffer, image.contentType, caption, { prompt });
-    } catch (error) {
-      if (error.stage === 'photo_size') {
-        logger.warn(`Отклонено фото: ${error.message}`);
-        return `Фото слишком большое (${error.message.match(/весит ([\d.]+) МБ/)?.[1] || '?'} МБ), максимум ${photoConfig.maxSizeMb} МБ. Пришлите, пожалуйста, меньшую версию изображения.`;
-      }
-
-      if (error.stage === 'vk_download') {
-        logger.error(`Ошибка при генерации поста по фото (этап скачивания фото из VK): ${error.message}`);
-      } else if (error.response) {
-        logger.error(`Ошибка при генерации поста по фото (этап AI): HTTP ${error.response.status}`);
-      } else {
-        logger.error('Ошибка при генерации поста по фото:', error.message || error);
-      }
-      return 'Извините, не получилось создать пост по фото. Попробуйте позже или пришлите другое изображение.';
-    }
-  }
-
   return {
-    generateText,
-    generatePersonaReply,
-    generatePostFromPhoto
+    downloadImage,
+    photoMaxSizeMb
   };
 }
 

@@ -25,60 +25,37 @@ function mockDownload(buffer, contentType = 'image/jpeg') {
   });
 }
 
-// Фейковый провайдер по контракту src/providers/provider.js.
-function makeFakeProvider(overrides = {}) {
-  return {
-    chat: jest.fn().mockResolvedValue('генерация ок'),
-    vision: jest.fn().mockResolvedValue('vision ок'),
-    capabilities: { vision: true, filesApi: true },
-    ...overrides
-  };
-}
-
-describe('generatePostFromPhoto: лимит размера фото', () => {
+describe('assistant.downloadImage: лимит размера фото', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
-  it('отклоняет фото больше лимита и возвращает дружелюбное сообщение', async () => {
+  it('отклоняет фото больше лимита (error.stage = photo_size)', async () => {
     mockDownload(Buffer.alloc(6 * 1024 * 1024)); // 6 МБ > лимита 5 МБ
-    const provider = makeFakeProvider();
-    const service = createAssistantService(provider, makeConfig());
+    const assistant = createAssistantService(makeConfig());
 
-    const result = await service.generatePostFromPhoto(['https://vk.example/photo.jpg']);
-
-    expect(result).toContain('слишком большое');
-    expect(result).toContain('6.0 МБ');
-    expect(result).toContain('5 МБ');
-    // Провайдер не должен вызываться для слишком большого фото.
-    expect(provider.vision).not.toHaveBeenCalled();
+    await expect(assistant.downloadImage(['https://vk.example/photo.jpg']))
+      .rejects.toMatchObject({ stage: 'photo_size', message: expect.stringContaining('6.0 МБ') });
   });
 
   it('принимает фото ровно на границе лимита (5 МБ включительно)', async () => {
     mockDownload(Buffer.alloc(5 * 1024 * 1024));
-    const provider = makeFakeProvider();
-    const service = createAssistantService(provider, makeConfig());
+    const assistant = createAssistantService(makeConfig());
 
-    const result = await service.generatePostFromPhoto(['https://vk.example/photo.jpg']);
-
-    expect(result).toBe('vision ок');
-    expect(provider.vision).toHaveBeenCalledTimes(1);
+    const image = await assistant.downloadImage(['https://vk.example/photo.jpg']);
+    expect(image.buffer.length).toBe(5 * 1024 * 1024);
+    expect(image.contentType).toBe('image/jpeg');
   });
 
-  it('пропускает маленькое фото дальше — провайдер получает байты и промпт', async () => {
+  it('пропускает маленькое фото, отдаёт байты и content-type', async () => {
     mockDownload(Buffer.alloc(100 * 1024)); // 100 КБ
-    const provider = makeFakeProvider();
-    const service = createAssistantService(provider, makeConfig());
+    const assistant = createAssistantService(makeConfig());
 
-    const result = await service.generatePostFromPhoto(['https://vk.example/photo.jpg'], 'комментарий');
+    const image = await assistant.downloadImage(['https://vk.example/photo.jpg']);
+    expect(image.buffer.length).toBe(100 * 1024);
+  });
 
-    expect(result).toBe('vision ок');
-    expect(provider.vision).toHaveBeenCalledWith(
-      expect.any(Buffer),
-      'image/jpeg',
-      'комментарий',
-      { prompt: expect.stringContaining('комментарий') }
-    );
+  it('photoMaxSizeMb доступен движку для текста сообщения', () => {
+    expect(createAssistantService(makeConfig()).photoMaxSizeMb).toBe(5);
   });
 });
-

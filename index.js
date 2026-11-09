@@ -2,7 +2,9 @@ const { VK } = require('vk-io');
 const env = require('./src/config/env');
 const { createAiProvider } = require('./src/providers');
 const { createAssistantService } = require('./src/services/assistant');
-const { registerMessageHandler } = require('./src/handlers/messageHandler');
+const { loadSkillPacks } = require('./src/skills');
+const { createSkillRegistry } = require('./src/skills/registry');
+const { createBotEngine } = require('./src/core/engine');
 const { logger, logFilePath } = require('./src/utils/logger');
 
 const missingEnvVars = env.validateEnv();
@@ -27,9 +29,21 @@ process.on('unhandledRejection', (reason) => {
   logger.error('Необработанный rejection (unhandledRejection):', reason);
 });
 
+// Сборка: провайдер → транспортные сервисы → реестр скиллов → движок.
 const aiProvider = createAiProvider(env);
-const assistantService = createAssistantService(aiProvider, env);
-registerMessageHandler(vk, assistantService);
+const assistant = createAssistantService(env);
+const registry = createSkillRegistry(loadSkillPacks(env), {
+  capabilities: aiProvider.capabilities
+});
+const engine = createBotEngine({
+  vk,
+  provider: aiProvider,
+  assistant,
+  registry,
+  personaId: env.persona
+});
+
+vk.updates.on('message_new', (context) => engine.handleMessage(context));
 
 (async () => {
   try {
