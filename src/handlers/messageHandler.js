@@ -292,8 +292,10 @@ function registerMessageHandler(vk, services) {
       }
 
       // 7. Остальной свободный текст — отвечает персонаж бота.
+      // Клавиатуру не прикладываем: в VK показывается последняя отправленная,
+      // поэтому меню пользователя не «сваливается» в главное.
       if (text) {
-        await runGeneration(context, getMainKeyboard(), () => generatePersonaReply(text));
+        await runGeneration(context, null, () => generatePersonaReply(text));
         return;
       }
 

@@ -8,12 +8,10 @@ jest.mock('axios', () => {
 });
 
 const axios = require('axios');
-const { createGigaChatService } = require('../src/services/gigachat');
+const { createAssistantService } = require('../src/services/assistant');
 
 function makeConfig(overrides = {}) {
   return {
-    timeoutMs: 1000,
-    retryAttempts: 1,
     photoDownloadTimeoutMs: 1000,
     photoMaxSizeMb: 5,
     ...overrides
@@ -27,6 +25,16 @@ function mockDownload(buffer, contentType = 'image/jpeg') {
   });
 }
 
+// Фейковый провайдер по контракту src/providers/provider.js.
+function makeFakeProvider(overrides = {}) {
+  return {
+    chat: jest.fn().mockResolvedValue('генерация ок'),
+    vision: jest.fn().mockResolvedValue('vision ок'),
+    capabilities: { vision: true, filesApi: true },
+    ...overrides
+  };
+}
+
 describe('generatePostFromPhoto: лимит размера фото', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -34,31 +42,42 @@ describe('generatePostFromPhoto: лимит размера фото', () => {
 
   it('отклоняет фото больше лимита и возвращает дружелюбное сообщение', async () => {
     mockDownload(Buffer.alloc(6 * 1024 * 1024)); // 6 МБ > лимита 5 МБ
-    const service = createGigaChatService(makeConfig());
+    const service = createAssistantService(makeFakeProvider(), makeConfig());
 
     const result = await service.generatePostFromPhoto(['https://vk.example/photo.jpg']);
 
     expect(result).toContain('слишком большое');
     expect(result).toContain('6.0 МБ');
     expect(result).toContain('5 МБ');
+    // Провайдер не должен вызываться для слишком большого фото.
+    expect(makeFakeProvider().vision).not.toHaveBeenCalled();
   });
 
   it('принимает фото ровно на границе лимита (5 МБ включительно)', async () => {
     mockDownload(Buffer.alloc(5 * 1024 * 1024));
-    const service = createGigaChatService(makeConfig());
+    const provider = makeFakeProvider();
+    const service = createAssistantService(provider, makeConfig());
 
-    // Дальше размера не пройдёт (нет токена), но ошибка должна быть НЕ про размер.
     const result = await service.generatePostFromPhoto(['https://vk.example/photo.jpg']);
 
-    expect(result).not.toContain('слишком большое');
+    expect(result).toBe('vision ок');
+    expect(provider.vision).toHaveBeenCalledTimes(1);
   });
 
-  it('пропускает маленькое фото дальше — падает уже на OAuth, не на размере', async () => {
+  it('пропускает маленькое фото дальше — провайдер получает байты и промпт', async () => {
     mockDownload(Buffer.alloc(100 * 1024)); // 100 КБ
-    const service = createGigaChatService(makeConfig());
+    const provider = makeFakeProvider();
+    const service = createAssistantService(provider, makeConfig());
 
-    const result = await service.generatePostFromPhoto(['https://vk.example/photo.jpg']);
+    const result = await service.generatePostFromPhoto(['https://vk.example/photo.jpg'], 'комментарий');
 
-    expect(result).not.toContain('слишком большое');
+    expect(result).toBe('vision ок');
+    expect(provider.vision).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      'image/jpeg',
+      'комментарий',
+      { prompt: expect.stringContaining('комментарий') }
+    );
   });
 });
+

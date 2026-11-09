@@ -1,6 +1,7 @@
 const { VK } = require('vk-io');
 const env = require('./src/config/env');
-const { createGigaChatService } = require('./src/services/gigachat');
+const { createAiProvider } = require('./src/providers');
+const { createAssistantService } = require('./src/services/assistant');
 const { registerMessageHandler } = require('./src/handlers/messageHandler');
 const { logger, logFilePath } = require('./src/utils/logger');
 
@@ -26,8 +27,9 @@ process.on('unhandledRejection', (reason) => {
   logger.error('Необработанный rejection (unhandledRejection):', reason);
 });
 
-const gigachatService = createGigaChatService(env.gigachat);
-registerMessageHandler(vk, gigachatService);
+const aiProvider = createAiProvider(env);
+const assistantService = createAssistantService(aiProvider, env);
+registerMessageHandler(vk, assistantService);
 
 (async () => {
   try {

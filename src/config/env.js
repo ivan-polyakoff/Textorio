@@ -8,6 +8,7 @@ const env = {
   vkToken: process.env.VK_GROUP_TOKEN,
   vkGroupId,
   persona: process.env.BOT_PERSONA || 'hedgehog',
+  aiProvider: process.env.AI_PROVIDER || 'gigachat',
   gigachat: {
     timeoutMs: Number(process.env.GIGACHAT_TIMEOUT_MS) || 30000,
     retryAttempts: Number(process.env.GIGACHAT_RETRY_ATTEMPTS) || 3,
