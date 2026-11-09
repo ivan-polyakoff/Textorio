@@ -2,6 +2,42 @@ const { logger } = require('./logger');
 
 const VK_MESSAGE_MAX_LENGTH = 4096;
 
+// Единое место построения клавиатур: core двигает только данные.
+// vk-io требуется лениво: модуль использует dynamic import,
+// который ломает Jest без --experimental-vm-modules.
+let cachedKeyboardModule = null;
+
+function getKeyboardModule() {
+  if (!cachedKeyboardModule) {
+    cachedKeyboardModule = require('vk-io');
+  }
+  return cachedKeyboardModule.Keyboard;
+}
+
+function buildKeyboard(rows) {
+  const Keyboard = getKeyboardModule();
+
+  const colors = {
+    primary: Keyboard.PRIMARY_COLOR,
+    positive: Keyboard.POSITIVE_COLOR,
+    secondary: Keyboard.SECONDARY_COLOR
+  };
+
+  const builder = Keyboard.builder();
+  rows.forEach((row, index) => {
+    if (index > 0) builder.row();
+    row.forEach(({ label, color }) => {
+      builder.textButton({
+        label,
+        payload: { command: label },
+        color: colors[color] || colors.primary
+      });
+    });
+  });
+  builder.oneTime(false);
+  return builder;
+}
+
 function splitMessage(text, maxLength = VK_MESSAGE_MAX_LENGTH) {
   const source = String(text ?? '');
 

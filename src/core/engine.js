@@ -3,11 +3,10 @@
 // через контракт (src/providers/provider.js). Ни VK, ни GigaChat здесь не упоминаются.
 // Специфика VK (клавиатуры vk-io, скачивание фото) остаётся в transport.
 
-const { sendWithOptionalKeyboard, getPhotoUrls, withTyping } = require('../utils/vk');
+const { sendWithOptionalKeyboard, getPhotoUrls, withTyping, buildKeyboard } = require('../utils/vk');
 const { createRateLimiter } = require('../utils/rateLimiter');
 const { getPersona } = require('../config/persona');
 const { logger } = require('../utils/logger');
-
 const RATE_LIMIT_MS = 3000;
 const USER_STATE_TTL_MS = 30 * 60 * 1000;
 
@@ -47,32 +46,8 @@ function createBotEngine({ vk, provider, assistant, registry, personaId }) {
   }
 
   async function send(context, text, rows = null) {
-    const keyboard = rows ? buildVkKeyboard(rows) : undefined;
+    const keyboard = rows ? buildKeyboard(rows) : undefined;
     await sendWithOptionalKeyboard(context, text, keyboard);
-  }
-
-  // Абстрактные ряды [[{label, color}]] → клавиатура vk-io.
-  function buildVkKeyboard(rows) {
-    const { Keyboard } = require('vk-io');
-    const colors = {
-      primary: Keyboard.PRIMARY_COLOR,
-      positive: Keyboard.POSITIVE_COLOR,
-      secondary: Keyboard.SECONDARY_COLOR
-    };
-
-    const builder = Keyboard.builder();
-    rows.forEach((row, index) => {
-      if (index > 0) builder.row();
-      row.forEach(({ label, color }) => {
-        builder.textButton({
-          label,
-          payload: { command: label },
-          color: colors[color] || colors.primary
-        });
-      });
-    });
-    builder.oneTime(false);
-    return builder;
   }
 
   async function runGeneration(context, rows, task) {

@@ -1,5 +1,6 @@
 const { splitMessage } = require('../src/utils/vk');
 
+
 const LIMIT = 4096;
 
 describe('splitMessage', () => {
