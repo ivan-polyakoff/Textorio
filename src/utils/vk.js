@@ -148,5 +148,6 @@ module.exports = {
   splitMessage,
   sendWithOptionalKeyboard,
   getPhotoUrls,
-  withTyping
+  withTyping,
+  buildKeyboard
 };
