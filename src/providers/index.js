@@ -18,6 +18,7 @@
 // Выбор провайдера: AI_PROVIDER в .env (см. createAiProvider ниже).
 
 const { createGigaChatProvider } = require('./gigachat');
+const { createOpenAiCompatibleProvider } = require('./openai-compatible');
 
 /**
  * Создаёт AI-провайдер по конфигу.
@@ -30,8 +31,11 @@ function createAiProvider(env) {
     case '':
       return createGigaChatProvider(env.gigachat);
 
+    case 'openai':
+      return createOpenAiCompatibleProvider(env.openai);
+
     default:
-      throw new Error(`Неизвестный AI_PROVIDER: ${env.aiProvider}. Доступно: gigachat`);
+      throw new Error(`Неизвестный AI_PROVIDER: ${env.aiProvider}. Доступно: gigachat, openai`);
   }
 }
 

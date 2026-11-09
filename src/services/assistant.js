@@ -11,6 +11,11 @@ const VK_PHOTO_MAX_BYTES = 20 * 1024 * 1024; // ограничение axios п�
 function createAssistantService(provider, config) {
   // Персонаж свободного диалога (характер бота), выбирается через BOT_PERSONA.
   const persona = getPersona(config.persona);
+  // Настройки фото лежат на верхнем уровне env (общие для всех провайдеров).
+  const photoConfig = {
+    downloadTimeoutMs: config.photoDownloadTimeoutMs,
+    maxSizeMb: config.photoMaxSizeMb
+  };
 
   async function generateText(prompt) {
     return provider.chat(prompt);
@@ -36,7 +41,7 @@ function createAssistantService(provider, config) {
         try {
           const response = await axios.get(imageUrl, {
             responseType: 'arraybuffer',
-            timeout: config.photoDownloadTimeoutMs,
+            timeout: photoConfig.downloadTimeoutMs,
             maxRedirects: 5,
             maxContentLength: VK_PHOTO_MAX_BYTES,
             headers: {
@@ -61,7 +66,7 @@ function createAssistantService(provider, config) {
             contentType
           };
 
-          const maxBytes = config.photoMaxSizeMb * 1024 * 1024;
+          const maxBytes = photoConfig.maxSizeMb * 1024 * 1024;
 
           if (downloaded.buffer.length > maxBytes) {
             const sizeMb = (downloaded.buffer.length / (1024 * 1024)).toFixed(1);
@@ -109,7 +114,7 @@ function createAssistantService(provider, config) {
     } catch (error) {
       if (error.stage === 'photo_size') {
         logger.warn(`Отклонено фото: ${error.message}`);
-        return `Фото слишком большое (${error.message.match(/весит ([\d.]+) МБ/)?.[1] || '?'} МБ), максимум ${config.photoMaxSizeMb} МБ. Пришлите, пожалуйста, меньшую версию изображения.`;
+        return `Фото слишком большое (${error.message.match(/весит ([\d.]+) МБ/)?.[1] || '?'} МБ), максимум ${photoConfig.maxSizeMb} МБ. Пришлите, пожалуйста, меньшую версию изображения.`;
       }
 
       if (error.stage === 'vk_download') {

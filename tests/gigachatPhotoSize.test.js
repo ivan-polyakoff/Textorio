@@ -42,7 +42,8 @@ describe('generatePostFromPhoto: лимит размера фото', () => {
 
   it('отклоняет фото больше лимита и возвращает дружелюбное сообщение', async () => {
     mockDownload(Buffer.alloc(6 * 1024 * 1024)); // 6 МБ > лимита 5 МБ
-    const service = createAssistantService(makeFakeProvider(), makeConfig());
+    const provider = makeFakeProvider();
+    const service = createAssistantService(provider, makeConfig());
 
     const result = await service.generatePostFromPhoto(['https://vk.example/photo.jpg']);
 
@@ -50,7 +51,7 @@ describe('generatePostFromPhoto: лимит размера фото', () => {
     expect(result).toContain('6.0 МБ');
     expect(result).toContain('5 МБ');
     // Провайдер не должен вызываться для слишком большого фото.
-    expect(makeFakeProvider().vision).not.toHaveBeenCalled();
+    expect(provider.vision).not.toHaveBeenCalled();
   });
 
   it('принимает фото ровно на границе лимита (5 МБ включительно)', async () => {
