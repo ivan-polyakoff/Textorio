@@ -1,11 +1,20 @@
 const fs = require('fs');
 const path = require('path');
 
-const LOG_DIR = path.join(__dirname, '..', '..', 'logs');
+// Каталог логов настраивается через LOG_DIR: несколько инстансов бота
+// (продакшен/тест) могут делить один чекаут или иметь разные каталоги —
+// каждый должен писать в свой журнал. По умолчанию — logs/ рядом с проектом.
+const LOG_DIR = process.env.LOG_DIR
+  ? path.resolve(process.env.LOG_DIR)
+  : path.join(__dirname, '..', '..', 'logs');
 const MAX_LOG_FILE_BYTES = 5 * 1024 * 1024; // 5 МБ на файл
 const MAX_LOG_FILES = 10; // храним до 10 файлов: app.log + app.log.1..9
 
-fs.mkdirSync(LOG_DIR, { recursive: true });
+try {
+  fs.mkdirSync(LOG_DIR, { recursive: true });
+} catch {
+  // Не упадём при проблемах с правами: консольный вывод (journald) останется.
+}
 
 const logFilePath = path.join(LOG_DIR, 'app.log');
 

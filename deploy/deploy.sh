@@ -3,10 +3,14 @@
 # Использование: ./deploy/deploy.sh [branch]
 # Тянет последнюю ветку, ставит зависимости, гоняет тесты.
 # Перезапускает сервис ТОЛЬКО если всё прошло; иначе откатывается к старой версии.
+#
+# Инстансы: имя сервиса выводится из имени каталога чекаута —
+#   /opt/textorio/prod -> textorio-prod, /opt/textorio/test -> textorio-test.
+# Override: TEXTORIO_SERVICE=textorio ./deploy/deploy.sh
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVICE="${TEXTORIO_SERVICE:-textorio}"
+SERVICE="${TEXTORIO_SERVICE:-textorio-$(basename "$APP_DIR")}"
 BRANCH="${1:-main}"
 
 cd "$APP_DIR"

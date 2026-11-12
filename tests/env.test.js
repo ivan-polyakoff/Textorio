@@ -9,18 +9,28 @@ describe('validateEnv', () => {
     delete process.env.VK_GROUP_TOKEN;
     delete process.env.GROUP_ID;
     delete process.env.GIGACHAT_API_KEY;
+    delete process.env.AI_PROVIDER;
+    delete process.env.AI_BASE_URL;
+    delete process.env.AI_API_KEY;
     Object.assign(process.env, envVars);
     return { module: require('../src/config/env'), saved };
   };
 
   const restoreEnv = (saved) => {
-    for (const key of ['VK_GROUP_TOKEN', 'GROUP_ID', 'GIGACHAT_API_KEY']) {
+    for (const key of [
+      'VK_GROUP_TOKEN',
+      'GROUP_ID',
+      'GIGACHAT_API_KEY',
+      'AI_PROVIDER',
+      'AI_BASE_URL',
+      'AI_API_KEY'
+    ]) {
       if (key in saved) process.env[key] = saved[key];
       else delete process.env[key];
     }
   };
 
-  it('возвращает список всех отсутствующих переменных', () => {
+  it('возвращает список всех отсутствующих переменных (провайдер gigachat по умолчанию)', () => {
     const { module, saved } = loadEnv({});
     try {
       expect(module.validateEnv()).toEqual([
@@ -67,6 +77,37 @@ describe('validateEnv', () => {
     });
     try {
       expect(module.validateEnv().length).toBe(3);
+    } finally {
+      restoreEnv(saved);
+    }
+  });
+
+  it('при AI_PROVIDER=openai требует AI_BASE_URL и AI_API_KEY вместо GigaChat', () => {
+    const { module, saved } = loadEnv({
+      AI_PROVIDER: 'openai',
+      VK_GROUP_TOKEN: 'token',
+      GROUP_ID: '12345'
+    });
+    try {
+      expect(module.validateEnv()).toEqual([
+        'AI_BASE_URL — базовый URL OpenAI-совместимого API',
+        'AI_API_KEY — ключ OpenAI-совместимого API'
+      ]);
+    } finally {
+      restoreEnv(saved);
+    }
+  });
+
+  it('при AI_PROVIDER=openai GigaChat-ключ не обязателен', () => {
+    const { module, saved } = loadEnv({
+      AI_PROVIDER: 'openai',
+      VK_GROUP_TOKEN: 'token',
+      GROUP_ID: '12345',
+      AI_BASE_URL: 'https://api.example.ai/v1',
+      AI_API_KEY: 'key'
+    });
+    try {
+      expect(module.validateEnv()).toEqual([]);
     } finally {
       restoreEnv(saved);
     }

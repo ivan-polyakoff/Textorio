@@ -1,0 +1,24 @@
+[Unit]
+Description=Textorio VK bot (production)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Пользователь, под которым работает бот (создайте: sudo useradd -r -m -d /opt/textorio -s /usr/sbin/nologin textorio)
+User=textorio
+Group=textorio
+# Чекаут прод-инстанса. Тест-инстанс — отдельный юнит textorio-test.service
+# с WorkingDirectory=/opt/textorio/test.
+WorkingDirectory=/opt/textorio/prod
+ExecStart=/usr/bin/node index.js
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+
+# Журнал: journalctl -u textorio-prod -f
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

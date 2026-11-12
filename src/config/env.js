@@ -49,7 +49,17 @@ function validateEnv() {
     missing.push('GROUP_ID — числовой ID группы ВКонтакте');
   }
 
-  if (!env.gigachat.apiKey) {
+  // Обязателен ключ того провайдера, который выбран, а не все сразу:
+  // тестовый инстанс может работать на openai-совместимом API без GigaChat.
+  if (env.aiProvider === 'openai') {
+    if (!env.openai.baseUrl) {
+      missing.push('AI_BASE_URL — базовый URL OpenAI-совместимого API');
+    }
+
+    if (!env.openai.apiKey) {
+      missing.push('AI_API_KEY — ключ OpenAI-совместимого API');
+    }
+  } else if (!env.gigachat.apiKey) {
     missing.push('GIGACHAT_API_KEY — ключ доступа GigaChat');
   }
 
