@@ -405,7 +405,9 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
       if (payload.a === 'regen') {
         await safeAnswer(context, 'Генерирую другой вариант');
-        await regenerateFromGeneration({ senderId }, generation, null);
+        // У message_event нет senderId (только userId) и нет полного интерфейса
+        // message-контекста — собираем совместимую обёртку для runGeneration.
+        await regenerateFromGeneration({ senderId, peerId: context.peerId, send: (text, params) => context.send(text, params) }, generation, null);
         return;
       }
     } catch (error) {
