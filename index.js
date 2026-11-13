@@ -4,6 +4,7 @@ const { createAiProvider } = require('./src/providers');
 const { createAssistantService } = require('./src/services/assistant');
 const { loadSkillPacks } = require('./src/skills');
 const { createSkillRegistry } = require('./src/skills/registry');
+const { createProfileStore } = require('./src/storage/profileStore');
 const { createBotEngine } = require('./src/core/engine');
 const { logger, logFilePath } = require('./src/utils/logger');
 
@@ -29,21 +30,25 @@ process.on('unhandledRejection', (reason) => {
   logger.error('Необработанный rejection (unhandledRejection):', reason);
 });
 
-// Сборка: провайдер → транспортные сервисы → реестр скиллов → движок.
+// Сборка: провайдер → транспортные сервисы → реестр скиллов → хранилище
+// профилей → движок.
 const aiProvider = createAiProvider(env);
 const assistant = createAssistantService(env);
 const registry = createSkillRegistry(loadSkillPacks(env), {
   capabilities: aiProvider.capabilities
 });
+const profileStore = createProfileStore({ dataDir: env.dataDir });
 const engine = createBotEngine({
   vk,
   provider: aiProvider,
   assistant,
   registry,
-  personaId: env.persona
+  personaId: env.persona,
+  profileStore
 });
 
 vk.updates.on('message_new', (context) => engine.handleMessage(context));
+vk.updates.on('message_event', (context) => engine.handleMessageEvent(context));
 
 (async () => {
   try {

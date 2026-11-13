@@ -3,16 +3,20 @@
 // через контракт (src/providers/provider.js). Ни VK, ни GigaChat здесь не упоминаются.
 // Специфика VK (клавиатуры vk-io, скачивание фото) остаётся в transport.
 
-const { sendWithOptionalKeyboard, getPhotoUrls, withTyping, buildKeyboard } = require('../utils/vk');
+const { sendWithOptionalKeyboard, getPhotoUrls, withTyping, buildKeyboard, buildInlineFeedbackKeyboard } = require('../utils/vk');
 const { createRateLimiter } = require('../utils/rateLimiter');
 const { getPersona } = require('../config/persona');
+const { detectFeedback } = require('./feedback');
 const { logger } = require('../utils/logger');
 const RATE_LIMIT_MS = 3000;
 const USER_STATE_TTL_MS = 30 * 60 * 1000;
+// Сколько времени доступна правка/перегенерация последнего результата.
+const GENERATION_TTL_MS = 30 * 60 * 1000;
+const MAX_SAVED_FEEDBACKS = 5;
 
-function createBotEngine({ vk, provider, assistant, registry, personaId }) {
+function createBotEngine({ vk, provider, assistant, registry, personaId, profileStore, rateLimitMs }) {
   const persona = getPersona(personaId);
-  const rateLimiter = createRateLimiter(RATE_LIMIT_MS);
+  const rateLimiter = createRateLimiter(rateLimitMs || RATE_LIMIT_MS);
   const userStates = new Map();
 
   // Состояния пользователей устаревают, чтобы Map не рос бесконечно.
@@ -45,18 +49,101 @@ function createBotEngine({ vk, provider, assistant, registry, personaId }) {
     userStates.delete(senderId);
   }
 
-  async function send(context, text, rows = null) {
-    const keyboard = rows ? buildKeyboard(rows) : undefined;
+  async function send(context, text, rows = null, keyboardOverride = undefined) {
+    const keyboard = keyboardOverride !== undefined ? keyboardOverride : (rows ? buildKeyboard(rows) : undefined);
     await sendWithOptionalKeyboard(context, text, keyboard);
   }
 
-  async function runGeneration(context, rows, task) {
+  const nowIso = () => new Date().toISOString();
+
+  // Активная (не устаревшая) последняя генерация — по ней работают правки и кнопки.
+  function getActiveGeneration(senderId) {
+    if (!profileStore) return null;
+
+    const generation = profileStore.load(senderId).lastGeneration;
+
+    if (!generation) return null;
+    if (Date.now() - Date.parse(generation.createdAt) > GENERATION_TTL_MS) return null;
+    return generation;
+  }
+
+  // Запоминаем последний результат: по нему работают 👍/👎/🔄 и текстовые правки.
+  function saveGeneration(senderId, meta, result, feedbacks) {
+    if (!profileStore) return null;
+
+    const profile = profileStore.load(senderId);
+    const generation = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      skillId: meta.skillId,
+      kind: meta.kind,
+      input: meta.input,
+      result,
+      feedbacks: (feedbacks || []).slice(-MAX_SAVED_FEEDBACKS),
+      createdAt: nowIso()
+    };
+
+    profile.lastGeneration = generation;
+    profileStore.save(profile);
+    return generation;
+  }
+
+  // Промпт перегенерации: исходная задача + предыдущий результат + правка.
+  // Для фото-скиллов правим текст результата (ссылки на фото ВК протухают).
+  function buildRevisionPrompt(skill, generation, critique) {
+    const parts = [];
+
+    if (skill.kind === 'photo') {
+      parts.push('Перепиши пост для социальной сети по правке пользователя. Исходное фото больше недоступно — опирайся на предыдущий вариант поста.');
+      parts.push(`Предыдущий вариант поста:\n${generation.result}`);
+    } else {
+      parts.push(skill.prompt(generation.input.text));
+      parts.push(`Предыдущий вариант:\n${generation.result}`);
+    }
+
+    if (critique) {
+      parts.push(`Пользователь недоволен результатом. Замечание: «${critique}». Перепиши, полностью учтя замечание, и сохрани достоинства предыдущего варианта.`);
+    } else {
+      parts.push('Сделай другой вариант: измени угол подачи и формулировки. Не повторяй предыдущий вариант дословно, сохрани качество и смысл.');
+    }
+
+    return parts.join('\n\n');
+  }
+
+  // Перегенерация по сохранённому результату: вариация или правка по критике.
+  async function regenerateFromGeneration(context, generation, critique) {
+    const skill = registry.findSkillById(generation.skillId);
+
+    if (!skill) {
+      await send(context, 'Не нашёл исходную задачу — запустите её заново из меню.', registry.mainMenuRows());
+      return;
+    }
+
+    const feedbacks = [...(generation.feedbacks || [])];
+
+    if (critique) feedbacks.push(critique);
+
+    await runGeneration(context, null, () => provider.chat(buildRevisionPrompt(skill, generation, critique)), {
+      skillId: skill.id,
+      kind: skill.kind,
+      input: generation.input,
+      feedbacks
+    });
+  }
+
+  async function runGeneration(context, rows, task, meta = null) {
     if (rateLimiter.isLimited(context.senderId)) {
       await send(context, 'Слишком часто — подождите пару секунд и попробуйте ещё раз.', rows);
       return;
     }
 
     const reply = await withTyping(vk, context, task);
+
+    if (meta) {
+      const generation = saveGeneration(context.senderId, meta, reply, meta.feedbacks);
+      await send(context, reply, null, generation ? buildInlineFeedbackKeyboard(generation.id) : undefined);
+      return;
+    }
+
     await send(context, reply, rows);
   }
 
@@ -116,7 +203,12 @@ function createBotEngine({ vk, provider, assistant, registry, personaId }) {
 
       const caption = context.text || userState.caption || '';
       deleteUserState(context.senderId);
-      await runGeneration(context, registry.packRows(skill.pack), () => runSkill(skill, context, { photoUrls, caption }));
+      await runGeneration(
+        context,
+        registry.packRows(skill.pack),
+        () => runSkill(skill, context, { photoUrls, caption }),
+        { skillId: skill.id, kind: skill.kind, input: { caption }, feedbacks: [] }
+      );
       return;
     }
 
@@ -126,7 +218,12 @@ function createBotEngine({ vk, provider, assistant, registry, personaId }) {
     }
 
     deleteUserState(context.senderId);
-    await runGeneration(context, registry.packRows(skill.pack), () => runSkill(skill, context, { text: context.text }));
+    await runGeneration(
+      context,
+      registry.packRows(skill.pack),
+      () => runSkill(skill, context, { text: context.text }),
+      { skillId: skill.id, kind: skill.kind, input: { text: context.text }, feedbacks: [] }
+    );
   }
 
   async function handleSkillArg(skill, context, arg) {
@@ -139,12 +236,22 @@ function createBotEngine({ vk, provider, assistant, registry, personaId }) {
         return;
       }
 
-      await runGeneration(context, registry.packRows(skill.pack), () => runSkill(skill, context, { photoUrls, caption: arg }));
+      await runGeneration(
+        context,
+        registry.packRows(skill.pack),
+        () => runSkill(skill, context, { photoUrls, caption: arg }),
+        { skillId: skill.id, kind: skill.kind, input: { caption: arg }, feedbacks: [] }
+      );
       return;
     }
 
     deleteUserState(context.senderId);
-    await runGeneration(context, registry.packRows(skill.pack), () => runSkill(skill, context, { text: arg }));
+    await runGeneration(
+      context,
+      registry.packRows(skill.pack),
+      () => runSkill(skill, context, { text: arg }),
+      { skillId: skill.id, kind: skill.kind, input: { text: arg }, feedbacks: [] }
+    );
   }
 
   // --- Главная точка входа: обработка одного сообщения ---
@@ -157,6 +264,9 @@ function createBotEngine({ vk, provider, assistant, registry, personaId }) {
 
       // Не логируем содержимое сообщений пользователей.
       logger.log(`Сообщение от ${context.senderId}: длина ${text.length}${hasAttachments ? `, вложений: ${context.attachments.length}` : ''}`);
+
+      // Фиксируем активность пользователя (ретеншен неактивных профилей).
+      profileStore?.touch?.(context.senderId);
 
       // 1. Навигация: сбрасывает состояние. При /start персонаж представляется.
       const navigation = registry.findNavigation(text);
@@ -183,6 +293,20 @@ function createBotEngine({ vk, provider, assistant, registry, personaId }) {
 
       const userState = getUserState(context.senderId);
 
+      // 3.5 Пользователь нажал 👎 и обещал правку: следующий текст = критика.
+      if (userState?.value === 'awaiting_critique' && text) {
+        deleteUserState(context.senderId);
+        const generation = getActiveGeneration(context.senderId);
+
+        if (!generation) {
+          await send(context, 'Контекст устарел — запустите задачу заново из меню.', registry.mainMenuRows());
+          return;
+        }
+
+        await regenerateFromGeneration(context, generation, text);
+        return;
+      }
+
       // 4. Сообщение в состоянии ожидания ввода.
       const stateSkill = userState ? registry.findSkillByState(userState.value) : null;
       if (stateSkill) {
@@ -196,6 +320,21 @@ function createBotEngine({ vk, provider, assistant, registry, personaId }) {
         const trigger = [argSkill.button, argSkill.command].find((item) => item?.startsWith('/') && text.startsWith(`${item} `));
         const arg = text.slice(trigger.length + 1).trim();
         await handleSkillArg(argSkill, context, arg);
+        return;
+      }
+
+      // 5.5 Короткая текстовая реакция на последний пост: «плохо», «ещё раз»,
+      // «переделай …» — то же, что 👎/🔄, но словами.
+      const feedback = text ? detectFeedback(text) : null;
+      if (feedback) {
+        const generation = getActiveGeneration(context.senderId);
+
+        if (generation) {
+          await regenerateFromGeneration(context, generation, feedback.critique);
+          return;
+        }
+
+        await send(context, 'Сначала сгенерируйте текст — тогда я смогу его переделать. Выберите задачу в меню.');
         return;
       }
 
@@ -233,8 +372,59 @@ function createBotEngine({ vk, provider, assistant, registry, personaId }) {
     }
   }
 
+  // --- Обработка инлайн-кнопок реакций (message_event) ---
+
+  async function handleMessageEvent(context) {
+    try {
+      const payload = context.eventPayload || {};
+
+      // Чужие/неопознанные события игнорируем.
+      if (!payload.a || !payload.g) return;
+
+      const senderId = context.userId ?? context.senderId;
+      const generation = getActiveGeneration(senderId);
+
+      // Кнопка со старого сообщения или контекст истёк.
+      if (!generation || String(generation.id) !== String(payload.g)) {
+        await safeAnswer(context, 'Контекст устарел — сгенерируйте заново');
+        return;
+      }
+
+      if (payload.a === 'good') {
+        profileStore?.touch?.(senderId);
+        await safeAnswer(context, 'Спасибо! Учту, что такой стиль нравится.');
+        return;
+      }
+
+      if (payload.a === 'bad') {
+        await safeAnswer(context, 'Сейчас спрошу правку');
+        setUserState(senderId, 'awaiting_critique');
+        await context.send('Понял. Что не так? Напишите, что поправить, — и я переделаю текст.');
+        return;
+      }
+
+      if (payload.a === 'regen') {
+        await safeAnswer(context, 'Генерирую другой вариант');
+        await regenerateFromGeneration({ senderId }, generation, null);
+        return;
+      }
+    } catch (error) {
+      logger.error('Ошибка обработки callback-кнопки:', error);
+    }
+  }
+
+  // Показ снекбара под кнопкой; событие живёт минуту, ошибки глотаем.
+  async function safeAnswer(context, text) {
+    try {
+      await context.answer({ type: 'show_snackbar', text });
+    } catch (error) {
+      logger.warn('Не удалось показать снекбар:', error.message || error);
+    }
+  }
+
   return {
-    handleMessage
+    handleMessage,
+    handleMessageEvent
   };
 }
 

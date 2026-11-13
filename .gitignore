@@ -1,6 +1,8 @@
 node_modules/
 dist/
 build/
+data/
+certs/
 *.log
 .env
 .env.local

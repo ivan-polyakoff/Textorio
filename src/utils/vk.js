@@ -38,6 +38,33 @@ function buildKeyboard(rows) {
   return builder;
 }
 
+// Инлайн-клавиатура реакций на результат генерации: 👍 / 👎 / 🔄.
+// Привязывается к конкретному сообщению и не «залипает» в чате,
+// в отличие от обычной клавиатуры меню.
+// payload: { a: 'good'|'bad'|'regen', g: genId } — обрабатывается в engine.handleMessageEvent.
+function buildInlineFeedbackKeyboard(genId) {
+  const Keyboard = getKeyboardModule();
+
+  const builder = Keyboard.builder();
+  builder.callbackButton({
+    label: '👍',
+    payload: { a: 'good', g: genId },
+    color: Keyboard.POSITIVE_COLOR
+  });
+  builder.callbackButton({
+    label: '👎',
+    payload: { a: 'bad', g: genId },
+    color: Keyboard.SECONDARY_COLOR
+  });
+  builder.callbackButton({
+    label: '🔄 Заново',
+    payload: { a: 'regen', g: genId },
+    color: Keyboard.PRIMARY_COLOR
+  });
+  builder.inline(true);
+  return builder;
+}
+
 function splitMessage(text, maxLength = VK_MESSAGE_MAX_LENGTH) {
   const source = String(text ?? '');
 
@@ -149,5 +176,6 @@ module.exports = {
   sendWithOptionalKeyboard,
   getPhotoUrls,
   withTyping,
-  buildKeyboard
+  buildKeyboard,
+  buildInlineFeedbackKeyboard
 };

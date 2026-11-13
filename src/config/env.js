@@ -1,4 +1,5 @@
 const dotenv = require('dotenv');
+const path = require('path');
 
 dotenv.config();
 
@@ -10,6 +11,11 @@ const env = {
   persona: process.env.BOT_PERSONA || 'hedgehog',
   aiProvider: process.env.AI_PROVIDER || 'gigachat',
   skillPacks: process.env.SKILL_PACKS || '',
+  // Каталог данных бота (профили пользователей, память стиля).
+  // По умолчанию data/ внутри каталога приложения.
+  dataDir: process.env.DATA_DIR
+    ? path.resolve(process.env.DATA_DIR)
+    : path.join(__dirname, '..', '..', 'data'),
   // Настройки фото — политика приложения, общая для всех провайдеров.
   photoDownloadTimeoutMs: Number(process.env.VK_PHOTO_DOWNLOAD_TIMEOUT_MS) || 30000,
   photoMaxSizeMb: Number(process.env.VK_PHOTO_MAX_SIZE_MB) || 5,
