@@ -6,7 +6,9 @@
 const { sendWithOptionalKeyboard, getPhotoUrls, withTyping, buildKeyboard, buildInlineFeedbackKeyboard } = require('../utils/vk');
 const { createRateLimiter } = require('../utils/rateLimiter');
 const { getPersona } = require('../config/persona');
+const { SAFETY_RULES } = require('../config/safety');
 const { detectFeedback } = require('./feedback');
+const { checkText, isModelRefusal, refusalFor } = require('./moderation');
 const { logger } = require('../utils/logger');
 const RATE_LIMIT_MS = 3000;
 const USER_STATE_TTL_MS = 30 * 60 * 1000;
@@ -93,6 +95,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     const parts = [];
 
     if (skill.kind === 'photo') {
+      parts.push(SAFETY_RULES);
       parts.push('Перепиши пост для социальной сети по правке пользователя. Исходное фото больше недоступно — опирайся на предыдущий вариант поста.');
       parts.push(`Предыдущий вариант поста:\n${generation.result}`);
     } else {
@@ -136,7 +139,15 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       return;
     }
 
-    const reply = await withTyping(vk, context, task);
+    let reply = await withTyping(vk, context, task);
+
+    // Сырой отказ модели не показываем пользователю: подменяем своим
+    // шаблоном (для суицида/селфхарма — с телефоном доверия).
+    if (isModelRefusal(reply)) {
+      const sourceText = meta?.input?.text || meta?.input?.caption || context.text || '';
+      logger.warn('Модель отказалась отвечать — подменяю на безопасный шаблон.');
+      reply = refusalFor(null, sourceText);
+    }
 
     if (meta) {
       const generation = saveGeneration(context.senderId, meta, reply, meta.feedbacks);
@@ -264,6 +275,14 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
       // Не логируем содержимое сообщений пользователей.
       logger.log(`Сообщение от ${context.senderId}: длина ${text.length}${hasAttachments ? `, вложений: ${context.attachments.length}` : ''}`);
+
+      // Цензура входа: однозначно запрещённые темы не доходят до модели.
+      const moderation = text ? checkText(text) : null;
+      if (moderation) {
+        logger.warn(`Отклонено сообщение (категория: ${moderation.category}), длина ${text.length}`);
+        await send(context, refusalFor(moderation.category, text), registry.mainMenuRows());
+        return;
+      }
 
       // Фиксируем активность пользователя (ретеншен неактивных профилей).
       profileStore?.touch?.(context.senderId);
