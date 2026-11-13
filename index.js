@@ -5,6 +5,7 @@ const { createAssistantService } = require('./src/services/assistant');
 const { loadSkillPacks } = require('./src/skills');
 const { createSkillRegistry } = require('./src/skills/registry');
 const { createProfileStore } = require('./src/storage/profileStore');
+const { createThinkingAnimation } = require('./src/services/thinkingAnimation');
 const { createBotEngine } = require('./src/core/engine');
 const { logger, logFilePath } = require('./src/utils/logger');
 
@@ -38,6 +39,11 @@ const registry = createSkillRegistry(loadSkillPacks(env), {
   capabilities: aiProvider.capabilities
 });
 const profileStore = createProfileStore({ dataDir: env.dataDir });
+const animation = createThinkingAnimation({
+  vk,
+  gifPath: env.animationGifPath,
+  intervalMs: env.animationIntervalMs
+});
 const engine = createBotEngine({
   vk,
   provider: aiProvider,
@@ -46,7 +52,8 @@ const engine = createBotEngine({
   personaId: env.persona,
   profileStore,
   moderationPolicy: env.moderation,
-  adminIds: env.adminIds
+  adminIds: env.adminIds,
+  animation
 });
 
 vk.updates.on('message_new', (context) => engine.handleMessage(context));

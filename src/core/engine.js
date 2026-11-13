@@ -18,7 +18,7 @@ const USER_STATE_TTL_MS = 30 * 60 * 1000;
 const GENERATION_TTL_MS = 30 * 60 * 1000;
 const MAX_SAVED_FEEDBACKS = 5;
 
-function createBotEngine({ vk, provider, assistant, registry, personaId, profileStore, rateLimitMs, moderationPolicy, adminIds }) {
+function createBotEngine({ vk, provider, assistant, registry, personaId, profileStore, rateLimitMs, moderationPolicy, adminIds, animation }) {
   const persona = getPersona(personaId);
   const rateLimiter = createRateLimiter(rateLimitMs || RATE_LIMIT_MS);
   const userStates = new Map();
@@ -183,7 +183,25 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       return;
     }
 
-    let reply = await withTyping(vk, context, task);
+    let progress = null;
+
+    try {
+      progress = await animation?.start?.(context);
+    } catch (error) {
+      logger.warn('Не удалось запустить анимацию генерации:', error.message || error);
+    }
+
+    let reply;
+
+    try {
+      reply = await withTyping(vk, context, task);
+    } finally {
+      try {
+        await animation?.stop?.(progress);
+      } catch (error) {
+        logger.warn('Не удалось остановить анимацию генерации:', error.message || error);
+      }
+    }
 
     // Сырой отказ модели не показываем пользователю: подменяем своим
     // шаблоном (для суицида/селфхарма — с телефоном доверия).
