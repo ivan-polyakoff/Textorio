@@ -1,56 +1,23 @@
-const fs = require('fs');
-const path = require('path');
 const { logger } = require('../utils/logger');
 
-const DEFAULT_PHRASES = [
-  'Думаю…',
-  'Подбираю слова…',
-  'Вот так лучше…',
-  'Почти готово…',
-  'Ещё чуть-чуть…'
-];
-
-const DEFAULT_INTERVAL_MS = 2500;
+const DEFAULT_INTERVAL_MS = 700;
 
 function randomId() {
   return Math.floor(Math.random() * 0x7fffffff);
 }
 
-function createThinkingAnimation({ vk, gifPath, phrases, intervalMs } = {}) {
-  const phraseList = Array.isArray(phrases) && phrases.length > 0 ? phrases : DEFAULT_PHRASES;
+function createThinkingAnimation({ vk, intervalMs } = {}) {
   const delay = Number(intervalMs) > 0 ? Number(intervalMs) : DEFAULT_INTERVAL_MS;
-  let attachmentPromise = null;
 
   function canAnimate() {
     return Boolean(vk?.api?.messages?.send && vk?.api?.messages?.edit);
-  }
-
-  async function ensureAttachment(peerId) {
-    if (!vk?.upload?.messageDocument || !gifPath) return null;
-    if (!attachmentPromise) {
-      attachmentPromise = (async () => {
-        try {
-          const buffer = await fs.promises.readFile(gifPath);
-          const document = await vk.upload.messageDocument({
-            source: { value: buffer, filename: path.basename(gifPath) },
-            peer_id: peerId
-          });
-          return document ? document.toString() : null;
-        } catch (error) {
-          logger.warn(`Не удалось загрузить GIF для анимации: ${error.message || error}`);
-          return null;
-        }
-      })();
-    }
-    return attachmentPromise;
   }
 
   async function edit(state, message) {
     await vk.api.messages.edit({
       peer_id: state.peerId,
       message_id: state.messageId,
-      message,
-      attachment: state.attachment || undefined
+      message
     });
   }
 
@@ -59,9 +26,8 @@ function createThinkingAnimation({ vk, gifPath, phrases, intervalMs } = {}) {
 
     state.busy = true;
     try {
-      const phrase = phraseList[state.index % phraseList.length];
-      state.index += 1;
-      await edit(state, phrase);
+      state.dots = (state.dots % 3) + 1;
+      await edit(state, `Думаю${'.'.repeat(state.dots)}`);
     } catch (error) {
       logger.warn(`Не удалось обновить анимацию генерации: ${error.message || error}`);
       state.stopped = true;
@@ -75,12 +41,10 @@ function createThinkingAnimation({ vk, gifPath, phrases, intervalMs } = {}) {
   async function start(context) {
     if (!canAnimate() || !context?.peerId) return null;
 
-    const attachment = await ensureAttachment(context.peerId);
     const state = {
       peerId: context.peerId,
       messageId: null,
-      attachment,
-      index: 1,
+      dots: 1,
       timer: null,
       busy: false,
       stopped: false
@@ -89,8 +53,7 @@ function createThinkingAnimation({ vk, gifPath, phrases, intervalMs } = {}) {
     try {
       const sent = await vk.api.messages.send({
         peer_id: context.peerId,
-        message: phraseList[0],
-        attachment: attachment || undefined,
+        message: 'Думаю.',
         random_id: randomId()
       });
       state.messageId = Array.isArray(sent) ? sent[0] : sent;
@@ -140,6 +103,5 @@ function createThinkingAnimation({ vk, gifPath, phrases, intervalMs } = {}) {
 }
 
 module.exports = {
-  createThinkingAnimation,
-  DEFAULT_PHRASES
+  createThinkingAnimation
 };

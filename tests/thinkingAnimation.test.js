@@ -1,6 +1,6 @@
 const { createThinkingAnimation } = require('../src/services/thinkingAnimation');
 
-function makeVk({ attachment = 'doc1_2', messageId = 77 } = {}) {
+function makeVk({ messageId = 77 } = {}) {
   return {
     api: {
       messages: {
@@ -8,11 +8,6 @@ function makeVk({ attachment = 'doc1_2', messageId = 77 } = {}) {
         edit: jest.fn(async () => 1),
         delete: jest.fn(async () => 1)
       }
-    },
-    upload: {
-      messageDocument: jest.fn(async () => ({
-        toString: () => attachment
-      }))
     }
   };
 }
@@ -30,36 +25,36 @@ describe('анимация генерации', () => {
     jest.useRealTimers();
   });
 
-  it('отправляет GIF-заглушку и меняет подписи по таймеру', async () => {
+  it('отправляет «Думаю.» и бегает точками по таймеру', async () => {
     jest.useFakeTimers();
     const vk = makeVk();
-    const animation = createThinkingAnimation({ vk, gifPath: 'assets/thinking.gif', intervalMs: 2500 });
+    const animation = createThinkingAnimation({ vk, intervalMs: 700 });
 
     const state = await animation.start(CONTEXT);
 
     expect(state.messageId).toBe(77);
-    expect(vk.upload.messageDocument).toHaveBeenCalledTimes(1);
     expect(vk.api.messages.send).toHaveBeenCalledWith(expect.objectContaining({
       peer_id: 5,
-      message: 'Думаю…',
-      attachment: 'doc1_2'
+      message: 'Думаю.'
     }));
 
-    jest.advanceTimersByTime(2500);
+    jest.advanceTimersByTime(700);
     await flush();
-
-    expect(vk.api.messages.edit).toHaveBeenCalledWith(expect.objectContaining({
-      peer_id: 5,
-      message_id: 77,
-      message: 'Подбираю слова…',
-      attachment: 'doc1_2'
-    }));
-
-    jest.advanceTimersByTime(2500);
-    await flush();
-
     expect(vk.api.messages.edit).toHaveBeenLastCalledWith(expect.objectContaining({
-      message: 'Вот так лучше…'
+      message_id: 77,
+      message: 'Думаю..'
+    }));
+
+    jest.advanceTimersByTime(700);
+    await flush();
+    expect(vk.api.messages.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+      message: 'Думаю...'
+    }));
+
+    jest.advanceTimersByTime(700);
+    await flush();
+    expect(vk.api.messages.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+      message: 'Думаю.'
     }));
 
     await animation.stop(state);
@@ -71,49 +66,45 @@ describe('анимация генерации', () => {
     }));
   });
 
-  it('не перезагружает GIF при следующих генерациях', async () => {
+  it('останавливает таймер после stop — правок больше нет', async () => {
+    jest.useFakeTimers();
     const vk = makeVk();
-    const animation = createThinkingAnimation({ vk, gifPath: 'assets/thinking.gif', intervalMs: 60000 });
+    const animation = createThinkingAnimation({ vk, intervalMs: 700 });
 
-    const first = await animation.start({ peerId: 5 });
-    await animation.stop(first);
-    const second = await animation.start({ peerId: 6 });
-    await animation.stop(second);
+    const state = await animation.start(CONTEXT);
+    await animation.stop(state);
 
-    expect(vk.upload.messageDocument).toHaveBeenCalledTimes(1);
-    expect(vk.api.messages.send).toHaveBeenCalledTimes(2);
+    const editsAfterStop = vk.api.messages.edit.mock.calls.length;
+
+    jest.advanceTimersByTime(3000);
+    await flush();
+
+    expect(vk.api.messages.edit.mock.calls.length).toBe(editsAfterStop);
   });
 
-  it('работает без GIF: только смена текста', async () => {
+  it('прекращает правки после первой ошибки редактирования', async () => {
+    jest.useFakeTimers();
     const vk = makeVk();
-    delete vk.upload;
-    const animation = createThinkingAnimation({ vk, gifPath: 'assets/thinking.gif' });
+    vk.api.messages.edit.mockRejectedValueOnce(new Error('edit failed'));
+    const animation = createThinkingAnimation({ vk, intervalMs: 700 });
 
     const state = await animation.start(CONTEXT);
 
-    expect(state.messageId).toBe(77);
-    expect(vk.api.messages.send.mock.calls[0][0].attachment).toBeUndefined();
+    jest.advanceTimersByTime(700);
+    await flush();
+    jest.advanceTimersByTime(7000);
+    await flush();
+
+    expect(vk.api.messages.edit).toHaveBeenCalledTimes(1);
 
     await animation.stop(state);
-  });
-
-  it('продолжает генерацию, если GIF не загрузился', async () => {
-    const vk = makeVk();
-    vk.upload.messageDocument.mockRejectedValueOnce(new Error('upload failed'));
-    const animation = createThinkingAnimation({ vk, gifPath: 'assets/thinking.gif' });
-
-    const state = await animation.start(CONTEXT);
-
-    expect(state).not.toBeNull();
-    expect(vk.api.messages.send.mock.calls[0][0].attachment).toBeUndefined();
-
-    await animation.stop(state);
+    expect(state.stopped).toBe(true);
   });
 
   it('возвращает null, если не удалось отправить заглушку', async () => {
     const vk = makeVk();
     vk.api.messages.send.mockRejectedValueOnce(new Error('send failed'));
-    const animation = createThinkingAnimation({ vk, gifPath: 'assets/thinking.gif' });
+    const animation = createThinkingAnimation({ vk, intervalMs: 700 });
 
     await expect(animation.start(CONTEXT)).resolves.toBeNull();
   });
@@ -121,15 +112,23 @@ describe('анимация генерации', () => {
   it('при ошибке удаления заменяет заглушку на «Готово»', async () => {
     const vk = makeVk();
     vk.api.messages.delete.mockRejectedValueOnce(new Error('delete failed'));
-    const animation = createThinkingAnimation({ vk, gifPath: 'assets/thinking.gif' });
+    const animation = createThinkingAnimation({ vk, intervalMs: 700 });
 
     const state = await animation.start(CONTEXT);
     await animation.stop(state);
 
     expect(vk.api.messages.edit).toHaveBeenCalledWith(expect.objectContaining({
       message_id: 77,
-      message: 'Готово ✅',
-      attachment: 'doc1_2'
+      message: 'Готово ✅'
     }));
+  });
+
+  it('работает без messages.edit (старое поведение — только typing)', async () => {
+    const vk = makeVk();
+    delete vk.api.messages.edit;
+    const animation = createThinkingAnimation({ vk });
+
+    await expect(animation.start(CONTEXT)).resolves.toBeNull();
+    expect(vk.api.messages.send).not.toHaveBeenCalled();
   });
 });

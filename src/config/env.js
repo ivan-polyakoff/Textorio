@@ -21,11 +21,8 @@ const env = {
     .split(',')
     .map((id) => id.trim())
     .filter(Boolean),
-  // Анимация «думаю» во время генерации: GIF и скорость смены подписей.
-  animationGifPath: process.env.ANIMATION_GIF_PATH
-    ? path.resolve(process.env.ANIMATION_GIF_PATH)
-    : path.join(__dirname, '..', '..', 'assets', 'thinking.gif'),
-  animationIntervalMs: Number.parseInt(process.env.ANIMATION_INTERVAL_MS ?? '', 10) || 2500,
+  // Анимация «Думаю…» во время генерации: скорость смены точек.
+  animationIntervalMs: Number.parseInt(process.env.ANIMATION_INTERVAL_MS ?? '', 10) || 700,
   // Санкции за однозначные нарушения цензуры.
   moderation: {
     strikeLimit: Number.parseInt(process.env.MODERATION_STRIKE_LIMIT ?? '', 10) || 3,

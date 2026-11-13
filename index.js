@@ -41,7 +41,6 @@ const registry = createSkillRegistry(loadSkillPacks(env), {
 const profileStore = createProfileStore({ dataDir: env.dataDir });
 const animation = createThinkingAnimation({
   vk,
-  gifPath: env.animationGifPath,
   intervalMs: env.animationIntervalMs
 });
 const engine = createBotEngine({
