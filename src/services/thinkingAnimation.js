@@ -1,12 +1,21 @@
 const { logger } = require('../utils/logger');
 
+const DEFAULT_PHRASES = [
+  'Думаю',
+  'Подбираю слова',
+  'Вот так лучше',
+  'Почти готово',
+  'Ещё чуть-чуть'
+];
+
 const DEFAULT_INTERVAL_MS = 700;
 
 function randomId() {
   return Math.floor(Math.random() * 0x7fffffff);
 }
 
-function createThinkingAnimation({ vk, intervalMs } = {}) {
+function createThinkingAnimation({ vk, phrases, intervalMs } = {}) {
+  const phraseList = Array.isArray(phrases) && phrases.length > 0 ? phrases : DEFAULT_PHRASES;
   const delay = Number(intervalMs) > 0 ? Number(intervalMs) : DEFAULT_INTERVAL_MS;
 
   function canAnimate() {
@@ -27,7 +36,10 @@ function createThinkingAnimation({ vk, intervalMs } = {}) {
     state.busy = true;
     try {
       state.dots = (state.dots % 3) + 1;
-      await edit(state, `Думаю${'.'.repeat(state.dots)}`);
+      if (state.dots === 1) {
+        state.phraseIndex = (state.phraseIndex + 1) % phraseList.length;
+      }
+      await edit(state, `${phraseList[state.phraseIndex]}${'.'.repeat(state.dots)}`);
     } catch (error) {
       logger.warn(`Не удалось обновить анимацию генерации: ${error.message || error}`);
       state.stopped = true;
@@ -45,6 +57,7 @@ function createThinkingAnimation({ vk, intervalMs } = {}) {
       peerId: context.peerId,
       messageId: null,
       dots: 1,
+      phraseIndex: 0,
       timer: null,
       busy: false,
       stopped: false
@@ -103,5 +116,6 @@ function createThinkingAnimation({ vk, intervalMs } = {}) {
 }
 
 module.exports = {
-  createThinkingAnimation
+  createThinkingAnimation,
+  DEFAULT_PHRASES
 };

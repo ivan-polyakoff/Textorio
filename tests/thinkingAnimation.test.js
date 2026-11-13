@@ -25,7 +25,7 @@ describe('анимация генерации', () => {
     jest.useRealTimers();
   });
 
-  it('отправляет «Думаю.» и бегает точками по таймеру', async () => {
+  it('отправляет «Думаю.» и меняет фразы с бегущими точками', async () => {
     jest.useFakeTimers();
     const vk = makeVk();
     const animation = createThinkingAnimation({ vk, intervalMs: 700 });
@@ -54,7 +54,13 @@ describe('анимация генерации', () => {
     jest.advanceTimersByTime(700);
     await flush();
     expect(vk.api.messages.edit).toHaveBeenLastCalledWith(expect.objectContaining({
-      message: 'Думаю.'
+      message: 'Подбираю слова.'
+    }));
+
+    jest.advanceTimersByTime(700);
+    await flush();
+    expect(vk.api.messages.edit).toHaveBeenLastCalledWith(expect.objectContaining({
+      message: 'Подбираю слова..'
     }));
 
     await animation.stop(state);
