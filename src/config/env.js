@@ -16,6 +16,17 @@ const env = {
   dataDir: process.env.DATA_DIR
     ? path.resolve(process.env.DATA_DIR)
     : path.join(__dirname, '..', '..', 'data'),
+  // ID администраторов для ручных санкций (`/админ бан <id>`).
+  adminIds: (process.env.ADMIN_IDS || '')
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean),
+  // Санкции за однозначные нарушения цензуры.
+  moderation: {
+    strikeLimit: Number.parseInt(process.env.MODERATION_STRIKE_LIMIT ?? '', 10) || 3,
+    strikeWindowHours: Number.parseInt(process.env.MODERATION_STRIKE_WINDOW_HOURS ?? '', 10) || 24,
+    blockHours: Number.parseInt(process.env.MODERATION_BLOCK_HOURS ?? '', 10) || 24
+  },
   // Настройки фото — политика приложения, общая для всех провайдеров.
   photoDownloadTimeoutMs: Number(process.env.VK_PHOTO_DOWNLOAD_TIMEOUT_MS) || 30000,
   photoMaxSizeMb: Number(process.env.VK_PHOTO_MAX_SIZE_MB) || 5,

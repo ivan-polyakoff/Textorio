@@ -7,7 +7,8 @@
 //   userId, createdAt, lastActiveAt,
 //   tier: { level: 'premium'|'free', source: 'legacy'|'manual'|'donut', grantedAt },
 //   lastGeneration: { id, skillId, kind, input, result, feedbacks, createdAt } | null,
-//   profile: { liked: [], disliked: [], styleCard: null }   // память стиля (этап 2)
+//   profile: { liked: [], disliked: [], styleCard: null },   // память стиля
+//   moderation: { strikes: [], blockedUntil: null }          // санкции за нарушения
 // }
 //
 // Пока все новые пользователи получают legacy-премиум (первая волна);
@@ -28,7 +29,8 @@ function blankProfile(userId) {
     lastActiveAt: at,
     tier: { level: 'premium', source: 'legacy', grantedAt: at },
     lastGeneration: null,
-    profile: { liked: [], disliked: [], styleCard: null }
+    profile: { liked: [], disliked: [], styleCard: null },
+    moderation: { strikes: [], blockedUntil: null }
   };
 }
 
@@ -62,7 +64,8 @@ function createProfileStore({ dataDir }) {
         ...fresh,
         ...data,
         tier: { ...fresh.tier, ...(data.tier || {}) },
-        profile: { ...fresh.profile, ...(data.profile || {}) }
+        profile: { ...fresh.profile, ...(data.profile || {}) },
+        moderation: { ...fresh.moderation, ...(data.moderation || {}) }
       };
     } catch (error) {
       if (error.code !== 'ENOENT') {

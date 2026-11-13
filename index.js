@@ -44,7 +44,9 @@ const engine = createBotEngine({
   assistant,
   registry,
   personaId: env.persona,
-  profileStore
+  profileStore,
+  moderationPolicy: env.moderation,
+  adminIds: env.adminIds
 });
 
 vk.updates.on('message_new', (context) => engine.handleMessage(context));
