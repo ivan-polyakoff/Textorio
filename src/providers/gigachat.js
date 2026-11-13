@@ -12,7 +12,7 @@ const FormData = require('form-data');
 const { randomUUID } = require('crypto');
 const { logger } = require('../utils/logger');
 
-const GENERIC_ERROR_TEXT = 'Извините, произошла ошибка при генерации текста. Попробуйте позже.';
+const { GENERIC_ERROR_TEXT } = require('./errorText');
 const GENERIC_VISION_ERROR_TEXT = 'Извините, не получилось создать пост по фото. Попробуйте позже или пришлите другое изображение.';
 
 function createGigaChatProvider(config) {

@@ -9,7 +9,7 @@ const fs = require('fs');
 const { logger } = require('../utils/logger');
 const { requestWithRetry, formatAxiosError } = require('./retry');
 
-const GENERIC_ERROR_TEXT = 'Извините, произошла ошибка при генерации текста. Попробуйте позже.';
+const { GENERIC_ERROR_TEXT } = require('./errorText');
 
 // Vision у OpenAI-совместимых API: изображение передаётся base64-дата URL
 // прямо в сообщении (Files API не используется).

@@ -8,6 +8,7 @@
 //   tier: { level: 'premium'|'free', source: 'legacy'|'manual'|'donut', grantedAt },
 //   lastGeneration: { id, skillId, kind, input, result, feedbacks, createdAt } | null,
 //   profile: { liked: [], disliked: [], styleCard: null },   // память стиля
+//   chat: { messages: [{ role, text, at }] },                // история свободного чата
 //   moderation: { strikes: [], blockedUntil: null }          // санкции за нарушения
 // }
 //
@@ -30,6 +31,7 @@ function blankProfile(userId) {
     tier: { level: 'premium', source: 'legacy', grantedAt: at },
     lastGeneration: null,
     profile: { liked: [], disliked: [], styleCard: null },
+    chat: { messages: [] },
     moderation: { strikes: [], blockedUntil: null }
   };
 }
@@ -65,6 +67,7 @@ function createProfileStore({ dataDir }) {
         ...data,
         tier: { ...fresh.tier, ...(data.tier || {}) },
         profile: { ...fresh.profile, ...(data.profile || {}) },
+        chat: { ...fresh.chat, ...(data.chat || {}) },
         moderation: { ...fresh.moderation, ...(data.moderation || {}) }
       };
     } catch (error) {
@@ -104,6 +107,7 @@ function createProfileStore({ dataDir }) {
 
     profile.lastGeneration = null;
     profile.profile = { ...fresh.profile };
+    profile.chat = { ...fresh.chat };
     save(profile);
     return profile;
   }

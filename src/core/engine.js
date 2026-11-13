@@ -9,7 +9,9 @@ const { getPersona } = require('../config/persona');
 const { SAFETY_RULES } = require('../config/safety');
 const { detectFeedback } = require('./feedback');
 const { checkText, isModelRefusal, refusalFor } = require('./moderation');
+const { GENERIC_ERROR_TEXT } = require('../providers/errorText');
 const { recordLike, recordDislike, styleHint, describeStyle, clearStyle } = require('./styleProfile');
+const { appendPair, getHistory, buildTranscript, clearChat } = require('./chatHistory');
 const { HOUR_MS, isBlocked, registerStrike, banUser, unblockUser } = require('./sanctions');
 const { logger } = require('../utils/logger');
 const RATE_LIMIT_MS = 3000;
@@ -205,19 +207,24 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
     // Сырой отказ модели не показываем пользователю: подменяем своим
     // шаблоном (для суицида/селфхарма — с телефоном доверия).
+    let refused = false;
+
     if (isModelRefusal(reply)) {
       const sourceText = meta?.input?.text || meta?.input?.caption || context.text || '';
       logger.warn('Модель отказалась отвечать — подменяю на безопасный шаблон.');
       reply = refusalFor(null, sourceText);
+      refused = true;
     }
 
     if (meta) {
       const generation = saveGeneration(context.senderId, meta, reply, meta.feedbacks);
       await send(context, reply, null, generation ? buildInlineFeedbackKeyboard(generation.id) : undefined);
-      return;
+      return { reply, refused };
     }
 
     await send(context, reply, rows);
+
+    return { reply, refused };
   }
 
   // --- Генерация по типам скиллов ---
@@ -378,6 +385,19 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     return true;
   }
 
+  async function handleForgetCommand(context, text) {
+    if (text !== '/забудь') return false;
+
+    if (profileStore) {
+      const profile = profileStore.load(context.senderId);
+      clearChat(profile);
+      profileStore.save(profile);
+    }
+
+    await send(context, 'Ок, обсуждение начнём с чистого листа. Чем займёмся?', registry.mainMenuRows());
+    return true;
+  }
+
   async function handleStyleCommand(context, text) {
     if (text !== '/мойстиль' && text !== '/сброситьстиль') return false;
 
@@ -437,6 +457,8 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       }
 
       if (text && await handleStyleCommand(context, text)) return;
+
+      if (text && await handleForgetCommand(context, text)) return;
 
       // Цензура входа: однозначно запрещённые темы не доходят до модели.
       const moderation = text ? checkText(text) : null;
@@ -553,7 +575,23 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       // поэтому меню пользователя не «сваливается» в главное.
       if (text) {
         const systemPrompt = applyStyleHint(persona.system, context.senderId);
-        await runGeneration(context, null, () => provider.chat(persona.replyWrapper(text, systemPrompt)));
+        const history = profileStore ? getHistory(profileStore.load(context.senderId)) : [];
+        const historyText = history.length > 0 ? buildTranscript(history) : null;
+        const prompt = historyText
+          ? persona.historyWrapper(text, systemPrompt, historyText)
+          : persona.replyWrapper(text, systemPrompt);
+
+        const { reply, refused } = await runGeneration(context, null, () => provider.chat(prompt));
+
+        // В историю пишем только осмысленные ответы: отказы и ошибки — нет.
+        const isStorable = profileStore && reply && !refused && !isModelRefusal(reply) && reply !== GENERIC_ERROR_TEXT;
+
+        if (isStorable) {
+          const profile = profileStore.load(context.senderId);
+          appendPair(profile, text, reply);
+          profileStore.save(profile);
+        }
+
         return;
       }
 
