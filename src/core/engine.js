@@ -152,7 +152,10 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       parts.push('Сделай другой вариант: измени угол подачи и формулировки. Не повторяй предыдущий вариант дословно, сохрани качество и смысл.');
     }
 
-    return applyStyleHint(parts.join('\n\n'), senderId);
+    const prompt = parts.join('\n\n');
+
+    // Фото-правки без карточки стиля: критика прошлых фото описывает кадры.
+    return skill.kind === 'photo' ? prompt : applyStyleHint(prompt, senderId);
   }
 
   // Перегенерация по сохранённому результату: вариация или правка по критике.
@@ -182,7 +185,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
   async function runGeneration(context, rows, task, meta = null) {
     if (rateLimiter.isLimited(context.senderId)) {
       await send(context, 'Слишком часто — подождите пару секунд и попробуйте ещё раз.', rows);
-      return;
+      return { reply: null, refused: false };
     }
 
     let progress = null;
@@ -237,7 +240,8 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     try {
       const image = await assistant.downloadImage(photoUrls);
       return await provider.vision(image.buffer, image.contentType, caption, {
-        prompt: applyStyleHint(skill.prompt(caption), senderId)
+        // Без карточки стиля: она описывает прошлые кадры и сбивает модель.
+        prompt: skill.prompt(caption)
       });
     } catch (error) {
       if (error.stage === 'photo_size') {

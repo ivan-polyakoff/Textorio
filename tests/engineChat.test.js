@@ -110,6 +110,47 @@ describe('движок: контекст свободного чата', () => {
     expect(profileStore.load(senderId).chat.messages).toHaveLength(0);
   });
 
+  it('фото-генерация не получает карточку стиля', async () => {
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'textorio-chat-photo-'));
+    const profileStore = createProfileStore({ dataDir });
+    const provider = {
+      chat: jest.fn(async () => 'ОТВЕТ'),
+      vision: jest.fn(async () => 'ПОСТ ПО ФОТО'),
+      capabilities: { vision: true, filesApi: false }
+    };
+    const registry = createSkillRegistry([bloggersPack, businessPack], { capabilities: provider.capabilities });
+    const engine = createBotEngine({
+      vk: { api: { messages: { setActivity: jest.fn(async () => {}) } } },
+      provider,
+      assistant: { downloadImage: jest.fn(async () => ({ buffer: Buffer.from('x'), contentType: 'image/jpeg' })) },
+      registry,
+      personaId: 'hedgehog',
+      profileStore,
+      rateLimitMs: 1
+    });
+
+    const send = jest.fn(async () => {});
+    const senderId = 507;
+
+    await engine.handleMessage({ senderId, peerId: senderId, text: 'привет', attachments: [], send });
+    await sleep(5);
+    await engine.handleMessage({ senderId, peerId: senderId, text: 'Создать пост', attachments: [], send });
+    await sleep(5);
+    await engine.handleMessage({ senderId, peerId: senderId, text: 'тема', attachments: [], send });
+    await sleep(5);
+
+    const photoSkill = registry.findSkillById('photo_post');
+
+    await engine.handleMessage({ senderId, peerId: senderId, text: photoSkill.button, attachments: [], send });
+    await sleep(5);
+    await engine.handleMessage({ senderId, peerId: senderId, text: '', attachments: [{ type: 'photo', sizes: [{ url: 'http://x/1.jpg', width: 100, height: 100 }] }], send });
+    await sleep(5);
+
+    expect(provider.vision).toHaveBeenCalledTimes(1);
+    const visionPrompt = provider.vision.mock.calls[0][3].prompt;
+    expect(visionPrompt).not.toContain('Заметки о стиле пользователя');
+  });
+
   it('история персистентна между загрузками хранилища', async () => {
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'textorio-chat-persist-'));
     const profileStore = createProfileStore({ dataDir });

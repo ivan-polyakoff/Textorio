@@ -70,6 +70,17 @@ describe('память стиля', () => {
     expect(styleHint(profile)).not.toContain('плохо');
   });
 
+  it('фото-генерации не попадают в память стиля', () => {
+    const profile = blank();
+
+    recordLike(profile, { id: 'p1', kind: 'photo', result: 'пост про ВДНХ' });
+    recordDislike(profile, { id: 'p1', kind: 'photo' }, 'это павильон космос');
+
+    expect(profile.profile.liked).toHaveLength(0);
+    expect(profile.profile.disliked).toHaveLength(0);
+    expect(styleHint(profile)).toBeNull();
+  });
+
   it('хранит только последние 5 примеров', () => {
     const profile = blank();
 

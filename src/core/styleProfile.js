@@ -79,6 +79,11 @@ function rebuildStyleCard(profile) {
  */
 function recordLike(profile, generation) {
   const data = ensureStyle(profile);
+
+  // Память стиля учит только текстовые генерации: фото-критика описывает
+  // содержимое конкретного кадра и не должна попадать в промпты.
+  if (generation?.kind === 'photo') return data.styleCard;
+
   const text = excerpt(generation?.result);
 
   if (!text) return data.styleCard;
@@ -109,6 +114,10 @@ function recordLike(profile, generation) {
  */
 function recordDislike(profile, generation, critique) {
   const data = ensureStyle(profile);
+
+  // См. recordLike: фото-критика — про содержимое кадра, не про стиль текста.
+  if (generation?.kind === 'photo') return data.styleCard;
+
   const note = excerpt(critique);
 
   const generationId = generation?.id || null;
