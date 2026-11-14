@@ -33,6 +33,8 @@
 //   skills: [ ... ]
 // }
 
+const { HELP_TEXT } = require('../config/helpText');
+
 const MAIN_MENU_ROW_SPAN = 2; // кнопок в ряду
 
 function chunkRows(labels) {
@@ -53,9 +55,20 @@ function chunkRows(labels) {
  */
 function createSkillRegistry(packs, options = {}) {
   const mainMenuButton = options.mainMenuButton || 'Главное меню';
+  const helpButton = options.helpButton || 'Помощь';
   const welcomeText = options.welcomeText ||
     'Привет! Я Textorio — бот для создания и улучшения текстов.\n\nВыберите, для кого нужен текст:';
   const capabilities = options.capabilities ?? null;
+
+  // Инструкция пользователя: кнопка в главном меню и /помощь.
+  const helpSkill = {
+    id: 'help',
+    pack: null,
+    kind: 'static',
+    button: helpButton,
+    command: '/помощь',
+    text: HELP_TEXT
+  };
 
   const packById = new Map(packs.map((pack) => [pack.id, pack]));
 
@@ -68,12 +81,15 @@ function createSkillRegistry(packs, options = {}) {
 
   // Скиллы-кнопки (не static): точные триггеры = метка кнопки + слэш-команда.
   const actionableSkills = skills.filter((skill) => skill.kind !== 'static');
-  const staticSkills = skills.filter((skill) => skill.kind === 'static');
+  const staticSkills = [...skills.filter((skill) => skill.kind === 'static'), helpSkill];
 
   // --- Раскладки клавиатур (абстрактные ряды: [[{label, color}]]) ---
 
   function mainMenuRows() {
-    return chunkRows(packs.map((pack) => ({ label: pack.button, color: pack.color || 'primary' })));
+    return [
+      ...chunkRows(packs.map((pack) => ({ label: pack.button, color: pack.color || 'primary' }))),
+      [{ label: helpButton, color: 'secondary' }]
+    ];
   }
 
   function packRows(packId) {

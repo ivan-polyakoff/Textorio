@@ -501,7 +501,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       // 2. Скиллы-заглушки (без генерации).
       const staticSkill = registry.findStatic(text);
       if (staticSkill) {
-        await send(context, staticSkill.text, registry.packRows(staticSkill.pack));
+        await send(context, staticSkill.text, registry.packRows(staticSkill.pack) || registry.mainMenuRows());
         return;
       }
 

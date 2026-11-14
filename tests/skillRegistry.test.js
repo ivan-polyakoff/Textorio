@@ -13,7 +13,7 @@ describe('createSkillRegistry', () => {
     const start = registry.findNavigation('/start');
     expect(start.isWelcome).toBe(true);
     expect(start.text).toContain('Textorio');
-    expect(start.rows.flat().map((b) => b.label)).toEqual(['Блогерам', 'Бизнесу']);
+    expect(start.rows.flat().map((b) => b.label)).toEqual(['Блогерам', 'Бизнесу', 'Помощь']);
 
     const menu = registry.findNavigation('Главное меню');
     expect(menu.isWelcome).toBe(true); // «Главное меню» тоже считается welcome-навигацией
@@ -91,10 +91,21 @@ describe('createSkillRegistry', () => {
     expect(registry.findSkillByText('Улучшить стиль')).not.toBeNull();
   });
 
+  it('помощь: кнопка в главном меню, /помощь и текст инструкции', () => {
+    const registry = makeRegistry();
+
+    expect(registry.findNavigation('/start').rows.flat()).toContainEqual({ label: 'Помощь', color: 'secondary' });
+
+    const help = registry.findStatic('/помощь');
+    expect(help.id).toBe('help');
+    expect(help.text).toContain('Как начать');
+    expect(registry.findStatic('Помощь').id).toBe('help');
+  });
+
   it('SKILL_PACKS фильтрует паки: только business', () => {
     const registry = createSkillRegistry([businessPack]);
 
-    expect(registry.findNavigation('/start').rows.flat().map((b) => b.label)).toEqual(['Бизнесу']);
+    expect(registry.findNavigation('/start').rows.flat().map((b) => b.label)).toEqual(['Бизнесу', 'Помощь']);
     expect(registry.findSkillByText('Улучшить стиль')).toBeNull();
     expect(registry.findSkillByText('Рекламный текст').id).toBe('ad_text');
   });
