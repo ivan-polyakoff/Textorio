@@ -13,7 +13,7 @@ describe('createSkillRegistry', () => {
     const start = registry.findNavigation('/start');
     expect(start.isWelcome).toBe(true);
     expect(start.text).toContain('Textorio');
-    expect(start.rows.flat().map((b) => b.label)).toEqual(['Блогерам', 'Бизнесу', 'Помощь']);
+    expect(start.rows.flat().map((b) => b.label)).toEqual(['Блогерам', 'Бизнесу', 'Обо мне']);
 
     const menu = registry.findNavigation('Главное меню');
     expect(menu.isWelcome).toBe(true); // «Главное меню» тоже считается welcome-навигацией
@@ -29,7 +29,7 @@ describe('createSkillRegistry', () => {
     expect(labels).toEqual([
       'Улучшить стиль', 'Создать пост',
       'Пост по фото', 'Обучить стилю',
-      'Главное меню'
+      'Помощь', 'Главное меню'
     ]);
   });
 
@@ -91,21 +91,32 @@ describe('createSkillRegistry', () => {
     expect(registry.findSkillByText('Улучшить стиль')).not.toBeNull();
   });
 
-  it('помощь: кнопка в главном меню, /помощь и текст инструкции', () => {
+  it('обо мне: кнопка в главном меню, /помощь — общий текст', () => {
     const registry = makeRegistry();
 
-    expect(registry.findNavigation('/start').rows.flat()).toContainEqual({ label: 'Помощь', color: 'secondary' });
+    expect(registry.findNavigation('/start').rows.flat()).toContainEqual({ label: 'Обо мне', color: 'secondary' });
 
-    const help = registry.findStatic('/помощь');
-    expect(help.id).toBe('help');
-    expect(help.text).toContain('Как начать');
-    expect(registry.findStatic('Помощь').id).toBe('help');
+    const about = registry.findStatic('/помощь');
+    expect(about.id).toBe('about');
+    expect(about.text).toContain('ИИ-редактор');
+    expect(registry.findStatic('Обо мне').id).toBe('about');
+    // «Помощь» — метка разделов, вне контекста пака не находится
+    expect(registry.findStatic('Помощь')).toBeNull();
+  });
+
+  it('помощь раздела: определяется только в контексте открытого пака', () => {
+    const registry = makeRegistry();
+
+    expect(registry.findPackHelp('bloggers', 'Помощь').text).toContain('«Блогерам»');
+    expect(registry.findPackHelp('business', 'Помощь').text).toContain('«Бизнесу»');
+    expect(registry.findPackHelp('bloggers', 'Обо мне')).toBeNull();
+    expect(registry.findPackHelp('unknown', 'Помощь')).toBeNull();
   });
 
   it('SKILL_PACKS фильтрует паки: только business', () => {
     const registry = createSkillRegistry([businessPack]);
 
-    expect(registry.findNavigation('/start').rows.flat().map((b) => b.label)).toEqual(['Бизнесу', 'Помощь']);
+    expect(registry.findNavigation('/start').rows.flat().map((b) => b.label)).toEqual(['Бизнесу', 'Обо мне']);
     expect(registry.findSkillByText('Улучшить стиль')).toBeNull();
     expect(registry.findSkillByText('Рекламный текст').id).toBe('ad_text');
   });

@@ -34,7 +34,7 @@
 //   skills: [ ... ]
 // }
 
-const { HELP_TEXT } = require('../config/helpText');
+const { ABOUT_TEXT } = require('../config/helpText');
 
 const MAIN_MENU_ROW_SPAN = 2; // кнопок в ряду
 
@@ -56,19 +56,21 @@ function chunkRows(labels) {
  */
 function createSkillRegistry(packs, options = {}) {
   const mainMenuButton = options.mainMenuButton || 'Главное меню';
-  const helpButton = options.helpButton || 'Помощь';
+  const aboutButton = options.aboutButton || 'Обо мне';
+  const sectionHelpButton = options.sectionHelpButton || 'Помощь';
   const welcomeText = options.welcomeText ||
     'Привет! Я Textorio — бот для создания и улучшения текстов.\n\nВыберите, для кого нужен текст:';
   const capabilities = options.capabilities ?? null;
 
-  // Инструкция пользователя: кнопка в главном меню и /помощь.
-  const helpSkill = {
-    id: 'help',
+  // «Обо мне»: краткое описание сервиса в главном меню и по /помощь.
+  // Детальные инструкции разделов — кнопка «Помощь» внутри каждого пака.
+  const aboutSkill = {
+    id: 'about',
     pack: null,
     kind: 'static',
-    button: helpButton,
+    button: aboutButton,
     command: '/помощь',
-    text: HELP_TEXT
+    text: ABOUT_TEXT
   };
 
   const packById = new Map(packs.map((pack) => [pack.id, pack]));
@@ -82,14 +84,25 @@ function createSkillRegistry(packs, options = {}) {
 
   // Скиллы-кнопки (не static): точные триггеры = метка кнопки + слэш-команда.
   const actionableSkills = skills.filter((skill) => skill.kind !== 'static');
-  const staticSkills = [...skills.filter((skill) => skill.kind === 'static'), helpSkill];
+  const staticSkills = [...skills.filter((skill) => skill.kind === 'static'), aboutSkill];
+
+  const packHelpSkills = new Map(packs.map((pack) => [
+    pack.id,
+    {
+      id: `help_${pack.id}`,
+      pack: pack.id,
+      kind: 'static',
+      button: sectionHelpButton,
+      text: pack.helpText || ABOUT_TEXT
+    }
+  ]));
 
   // --- Раскладки клавиатур (абстрактные ряды: [[{label, color}]]) ---
 
   function mainMenuRows() {
     return [
       ...chunkRows(packs.map((pack) => ({ label: pack.button, color: pack.color || 'primary' }))),
-      [{ label: helpButton, color: 'secondary' }]
+      [{ label: aboutButton, color: 'secondary' }]
     ];
   }
 
@@ -103,7 +116,10 @@ function createSkillRegistry(packs, options = {}) {
       color: skill.color || 'primary'
     })));
 
-    return [...rows, [{ label: mainMenuButton, color: 'secondary' }]];
+    return [...rows, [
+      { label: sectionHelpButton, color: 'secondary' },
+      { label: mainMenuButton, color: 'secondary' }
+    ]];
   }
 
   // --- Поиск по тексту/состоянию/интенту ---
@@ -115,7 +131,8 @@ function createSkillRegistry(packs, options = {}) {
 
     const pack = packs.find((item) => item.button === text);
     if (pack) {
-      return { rows: packRows(pack.id), text: pack.menuText };
+      // Запоминаем раздел: по нему работает кнопка «Помощь» внутри пака.
+      return { rows: packRows(pack.id), text: pack.menuText, pack: pack.id };
     }
 
     return null;
@@ -123,6 +140,14 @@ function createSkillRegistry(packs, options = {}) {
 
   function findStatic(text) {
     return staticSkills.find((skill) => skillTriggers(skill).includes(text)) || null;
+  }
+
+  // Помощь раздела: метка «Помощь» одинакова во всех паках, поэтому ищем
+  // в контексте открытого раздела (движок помнит его по state pack:<id>).
+  function findPackHelp(packId, text) {
+    const skill = packHelpSkills.get(packId);
+    if (!skill || text !== sectionHelpButton) return null;
+    return skill;
   }
 
   function findSkillByText(text) {
@@ -186,8 +211,10 @@ function createSkillRegistry(packs, options = {}) {
     skills,
     mainMenuRows,
     packRows,
+    helpButton: sectionHelpButton,
     findNavigation,
     findStatic,
+    findPackHelp,
     findSkillByText,
     findSkillByPrefix,
     findSkillById,

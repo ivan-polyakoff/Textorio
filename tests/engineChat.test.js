@@ -101,6 +101,26 @@ describe('движок: бизнес-скиллы с опциональным ф
   });
 });
 
+describe('движок: помощь по разделам', () => {
+  it('«Помощь» после входа в раздел выдаёт инструкцию этого раздела', async () => {
+    const { engine, message } = makeHarness();
+
+    await engine.handleMessage(message(701, 'Блогерам'));
+    const sectionHelp = message(701, 'Помощь');
+    await engine.handleMessage(sectionHelp);
+    expect(sectionHelp.send.mock.calls[0][0]).toContain('«Блогерам»');
+
+    await engine.handleMessage(message(701, 'Главное меню'));
+    const about = message(701, 'Помощь');
+    await engine.handleMessage(about);
+    expect(about.send.mock.calls[0][0]).toContain('ИИ-редактор');
+
+    const directAbout = message(701, '/помощь');
+    await engine.handleMessage(directAbout);
+    expect(directAbout.send.mock.calls[0][0]).toContain('ИИ-редактор');
+  });
+});
+
 describe('движок: контекст свободного чата', () => {
   it('второй запрос свободного чата содержит историю диалога', async () => {
     const { engine, provider, message } = makeHarness({ chatReply: 'ПЕРВЫЙ ОТВЕТ' });

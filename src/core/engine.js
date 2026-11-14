@@ -544,7 +544,12 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       // 1. Навигация: сбрасывает состояние. При /start персонаж представляется.
       const navigation = registry.findNavigation(text);
       if (navigation) {
-        deleteUserState(context.senderId);
+        // Открытие раздела запоминаем: по нему работает кнопка «Помощь» в паке.
+        if (navigation.pack) {
+          setUserState(context.senderId, `pack:${navigation.pack}`);
+        } else {
+          deleteUserState(context.senderId);
+        }
         const greeting = navigation.isWelcome ? `${navigation.text}\n\n${persona.intro}` : navigation.text;
         await send(context, greeting, navigation.rows);
         return;
@@ -554,6 +559,23 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       const staticSkill = registry.findStatic(text);
       if (staticSkill) {
         await send(context, staticSkill.text, registry.packRows(staticSkill.pack) || registry.mainMenuRows());
+        return;
+      }
+
+      // «Помощь» внутри раздела — детальная инструкция открытого пака.
+      if (text === registry.helpButton) {
+        const userState = getUserState(context.senderId);
+        const packId = userState?.value?.startsWith('pack:') ? userState.value.slice('pack:'.length) : null;
+        const packHelp = packId ? registry.findPackHelp(packId, text) : null;
+
+        if (packHelp) {
+          await send(context, packHelp.text, registry.packRows(packHelp.pack));
+          return;
+        }
+
+        // Без открытого раздела — общий рассказ «Обо мне».
+        const about = registry.findStatic('/помощь');
+        await send(context, about.text, registry.mainMenuRows());
         return;
       }
 

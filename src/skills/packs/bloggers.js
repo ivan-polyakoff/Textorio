@@ -3,6 +3,7 @@
 // теперь сценарий целиком описан одним файлом.
 
 const { withSafetyRules } = require('../../config/safety');
+const { BLOGGERS_HELP } = require('../../config/helpText');
 
 const WORD_END = '(?![а-яё])'; // \b в JS не работает с кириллицей
 
@@ -11,6 +12,7 @@ module.exports = {
   button: 'Блогерам',
   color: 'primary',
   menuText: 'Раздел для блогеров. Выберите задачу.',
+  helpText: BLOGGERS_HELP,
   skills: [
     {
       id: 'style_improve',
