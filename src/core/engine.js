@@ -261,7 +261,33 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     if (skill.kind === 'photo') {
       return generateByPhoto(skill, input.photoUrls, input.caption, context.senderId);
     }
+    // Текстовые скиллы с acceptsPhoto: фото есть — генерируем по vision.
+    if (skill.acceptsPhoto && input.photoUrls?.length) {
+      return generateByVision(skill, input.text, input.photoUrls, context.senderId);
+    }
     return generateByText(skill, input.text, context.senderId);
+  }
+
+  // Гибрид «текст + фото»: описание/оффер в промпте, товар на фото.
+  // Фото-URL не сохраняем: к правке они протухнут, правим текст результата.
+  async function generateByVision(skill, text, photoUrls, senderId) {
+    try {
+      const image = await assistant.downloadImage(photoUrls);
+      return await provider.vision(image.buffer, image.contentType, text, {
+        prompt: applyStyleHint(skill.prompt(text), senderId)
+      });
+    } catch (error) {
+      if (error.stage === 'photo_size') {
+        logger.warn(`Отклонено фото: ${error.message}`);
+        return `Фото слишком большое (${error.message.match(/весит ([\d.]+) МБ/)?.[1] || '?'} МБ), максимум ${assistant.photoMaxSizeMb} МБ. Пришлите, пожалуйста, меньшую версию изображения.`;
+      }
+      if (error.stage === 'vk_download') {
+        logger.error(`Ошибка при генерации по фото (этап скачивания из VK): ${error.message}`);
+      } else {
+        logger.error('Ошибка при генерации по фото:', error.message || error);
+      }
+      return 'Извините, не получилось обработать фото. Попробуйте позже или пришлите другое изображение.';
+    }
   }
 
   // --- Обработчики сценариев ---
@@ -298,6 +324,19 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       return;
     }
 
+    if (skill.acceptsPhoto && getPhotoUrls(context).length > 0) {
+      const photoUrls = getPhotoUrls(context);
+
+      deleteUserState(context.senderId);
+      await runGeneration(
+        context,
+        registry.packRows(skill.pack),
+        () => runSkill(skill, context, { text: context.text, photoUrls }),
+        { skillId: skill.id, kind: skill.kind, input: { text: context.text, photoUrls }, feedbacks: [] }
+      );
+      return;
+    }
+
     if (!context.text) {
       await send(context, skill.emptyAsk, registry.packRows(skill.pack));
       return;
@@ -327,6 +366,19 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
         registry.packRows(skill.pack),
         () => runSkill(skill, context, { photoUrls, caption: arg }),
         { skillId: skill.id, kind: skill.kind, input: { caption: arg }, feedbacks: [] }
+      );
+      return;
+    }
+
+    if (skill.acceptsPhoto && getPhotoUrls(context).length > 0) {
+      const photoUrls = getPhotoUrls(context);
+
+      deleteUserState(context.senderId);
+      await runGeneration(
+        context,
+        registry.packRows(skill.pack),
+        () => runSkill(skill, context, { text: arg, photoUrls }),
+        { skillId: skill.id, kind: skill.kind, input: { text: arg, photoUrls }, feedbacks: [] }
       );
       return;
     }

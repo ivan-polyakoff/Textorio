@@ -45,6 +45,62 @@ function makeHarness({ chatReply = 'ОТВЕТ' } = {}) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+describe('движок: бизнес-скиллы с опциональным фото', () => {
+  it('описание товара по тексту идёт через chat, с фото — через vision', async () => {
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'textorio-hybrid-'));
+    const profileStore = createProfileStore({ dataDir });
+    const provider = {
+      chat: jest.fn(async () => 'ОПИСАНИЕ ПО ТЕКСТУ'),
+      vision: jest.fn(async () => 'ОПИСАНИЕ ПО ФОТО'),
+      capabilities: { vision: true, filesApi: false }
+    };
+    const registry = createSkillRegistry([bloggersPack, businessPack], { capabilities: provider.capabilities });
+    const engine = createBotEngine({
+      vk: { api: { messages: { setActivity: jest.fn(async () => {}) } } },
+      provider,
+      assistant: { downloadImage: jest.fn(async () => ({ buffer: Buffer.from('x'), contentType: 'image/jpeg' })) },
+      registry,
+      personaId: 'hedgehog',
+      profileStore,
+      rateLimitMs: 1
+    });
+
+    const send = jest.fn(async () => {});
+    const senderId = 601;
+    const photo = [{ type: 'photo', sizes: [{ url: 'http://x/p.jpg', width: 100, height: 100 }] }];
+
+    await engine.handleMessage({ senderId, peerId: senderId, text: 'Создать пост', attachments: [], send });
+    await sleep(5);
+    await engine.handleMessage({ senderId, peerId: senderId, text: 'тема', attachments: [], send });
+    await sleep(5);
+
+    // Текст без фото — chat
+    await engine.handleMessage({ senderId, peerId: senderId, text: '/товар эко-сумка из хлопка', attachments: [], send });
+    await sleep(5);
+    expect(provider.chat).toHaveBeenCalledWith(expect.stringContaining('эко-сумка'));
+    expect(provider.vision).not.toHaveBeenCalled();
+
+    // Фото + комментарий — vision (сначала триггер ставит состояние)
+    await engine.handleMessage({ senderId, peerId: senderId, text: '/товар', attachments: [], send });
+    await sleep(5);
+    await engine.handleMessage({ senderId, peerId: senderId, text: 'сумка для маркетов', attachments: photo, send });
+    await sleep(5);
+    expect(provider.vision).toHaveBeenCalledTimes(1);
+    const [buffer, contentType, caption, options] = provider.vision.mock.calls[0];
+    expect(caption).toBe('сумка для маркетов');
+    expect(options.prompt).toContain('сумка для маркетов');
+    expect(buffer).toEqual(Buffer.from('x'));
+
+    // Фото без текста — vision с пустым описанием (триггер ставит состояние)
+    await engine.handleMessage({ senderId, peerId: senderId, text: '/товар', attachments: [], send });
+    await sleep(5);
+    await engine.handleMessage({ senderId, peerId: senderId, text: '', attachments: photo, send });
+    await sleep(5);
+    expect(provider.vision).toHaveBeenCalledTimes(2);
+    expect(provider.vision.mock.calls[1][2]).toBe('');
+  });
+});
+
 describe('движок: контекст свободного чата', () => {
   it('второй запрос свободного чата содержит историю диалога', async () => {
     const { engine, provider, message } = makeHarness({ chatReply: 'ПЕРВЫЙ ОТВЕТ' });
