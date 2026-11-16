@@ -28,7 +28,8 @@ describe('createSkillRegistry', () => {
 
     expect(labels).toEqual([
       'Улучшить стиль', 'Создать пост',
-      'Пост по фото', 'Обучить стилю',
+      'Пост по фото', 'Поздравление',
+      'Благодарность', 'Обучить стилю',
       'Помощь', 'Главное меню'
     ]);
   });
@@ -102,6 +103,16 @@ describe('createSkillRegistry', () => {
     expect(registry.findStatic('Обо мне').id).toBe('about');
     // «Помощь» — метка разделов, вне контекста пака не находится
     expect(registry.findStatic('Помощь')).toBeNull();
+  });
+
+  it('интенты: поздравление и благодарность', () => {
+    const registry = makeRegistry();
+
+    expect(registry.detectIntent('поздравь коллегу с днём рождения').skill.id).toBe('congrats');
+    expect(registry.detectIntent('поздравь коллегу с днём рождения').argument).toBe('коллегу с днём рождения');
+    expect(registry.findSkillByText('/поздравление').id).toBe('congrats');
+    expect(registry.detectIntent('поблагодари команду за работу').skill.id).toBe('thanks');
+    expect(registry.findSkillByText('/благодарность').id).toBe('thanks');
   });
 
   it('помощь раздела: определяется только в контексте открытого пака', () => {
