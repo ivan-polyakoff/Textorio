@@ -1,4 +1,4 @@
-// Пак скиллов «Бизнесу»: описание товара, рекламный текст, ответ клиенту.
+// Пак скиллов «Я — продавец»: описание товара, рекламный текст, ответ клиенту.
 
 const { withSafetyRules } = require('../../config/safety');
 const { BUSINESS_HELP } = require('../../config/helpText');
@@ -7,9 +7,9 @@ const WORD_END = '(?![а-яё])'; // \b в JS не работает с кири�
 
 module.exports = {
   id: 'business',
-  button: 'Бизнесу',
+  button: 'Я — продавец',
   color: 'positive',
-  menuText: 'Раздел для малого бизнеса. Выберите задачу.',
+  menuText: 'Раздел для продавцов. Выберите задачу.',
   helpText: BUSINESS_HELP,
   skills: [
     {

@@ -105,10 +105,10 @@ describe('движок: помощь по разделам', () => {
   it('«Помощь» после входа в раздел выдаёт инструкцию этого раздела', async () => {
     const { engine, message } = makeHarness();
 
-    await engine.handleMessage(message(701, 'Блогерам'));
+    await engine.handleMessage(message(701, 'Я — автор'));
     const sectionHelp = message(701, 'Помощь');
     await engine.handleMessage(sectionHelp);
-    expect(sectionHelp.send.mock.calls[0][0]).toContain('«Блогерам»');
+    expect(sectionHelp.send.mock.calls[0][0]).toContain('«Я — автор»');
 
     await engine.handleMessage(message(701, 'Главное меню'));
     const about = message(701, 'Помощь');
@@ -237,7 +237,7 @@ describe('движок: контекст свободного чата', () => {
     const serialized = JSON.parse(options.keyboard.toString());
     const labels = serialized.buttons.flat().map((b) => b.action.label);
 
-    expect(labels).toEqual(['Блогерам', 'Бизнесу', 'Обо мне']);
+    expect(labels).toEqual(['Я — автор', 'Я — продавец', 'Обо мне']);
   });
 
   it('история персистентна между загрузками хранилища', async () => {

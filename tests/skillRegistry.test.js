@@ -13,7 +13,7 @@ describe('createSkillRegistry', () => {
     const start = registry.findNavigation('/start');
     expect(start.isWelcome).toBe(true);
     expect(start.text).toContain('Textorio');
-    expect(start.rows.flat().map((b) => b.label)).toEqual(['Блогерам', 'Бизнесу', 'Обо мне']);
+    expect(start.rows.flat().map((b) => b.label)).toEqual(['Я — автор', 'Я — продавец', 'Обо мне']);
 
     const menu = registry.findNavigation('Главное меню');
     expect(menu.isWelcome).toBe(true); // «Главное меню» тоже считается welcome-навигацией
@@ -23,7 +23,7 @@ describe('createSkillRegistry', () => {
   it('кнопка пака открывает его скиллы + кнопку главного меню', () => {
     const registry = makeRegistry();
 
-    const nav = registry.findNavigation('Блогерам');
+    const nav = registry.findNavigation('Я — автор');
     const labels = nav.rows.flat().map((b) => b.label);
 
     expect(labels).toEqual([
@@ -84,7 +84,7 @@ describe('createSkillRegistry', () => {
   it('capabilities без vision скрывают фотопост из меню и поиска', () => {
     const registry = makeRegistry({ capabilities: { vision: false, filesApi: false } });
 
-    const labels = registry.findNavigation('Блогерам').rows.flat().map((b) => b.label);
+    const labels = registry.findNavigation('Я — автор').rows.flat().map((b) => b.label);
     expect(labels).not.toContain('Пост по фото');
     expect(registry.findSkillByText('Пост по фото')).toBeNull();
     expect(registry.detectIntent('пост по фото')).toBeNull();
@@ -118,8 +118,8 @@ describe('createSkillRegistry', () => {
   it('помощь раздела: определяется только в контексте открытого пака', () => {
     const registry = makeRegistry();
 
-    expect(registry.findPackHelp('bloggers', 'Помощь').text).toContain('«Блогерам»');
-    expect(registry.findPackHelp('business', 'Помощь').text).toContain('«Бизнесу»');
+    expect(registry.findPackHelp('bloggers', 'Помощь').text).toContain('«Я — автор»');
+    expect(registry.findPackHelp('business', 'Помощь').text).toContain('«Я — продавец»');
     expect(registry.findPackHelp('bloggers', 'Обо мне')).toBeNull();
     expect(registry.findPackHelp('unknown', 'Помощь')).toBeNull();
   });
@@ -127,7 +127,7 @@ describe('createSkillRegistry', () => {
   it('SKILL_PACKS фильтрует паки: только business', () => {
     const registry = createSkillRegistry([businessPack]);
 
-    expect(registry.findNavigation('/start').rows.flat().map((b) => b.label)).toEqual(['Бизнесу', 'Обо мне']);
+    expect(registry.findNavigation('/start').rows.flat().map((b) => b.label)).toEqual(['Я — продавец', 'Обо мне']);
     expect(registry.findSkillByText('Улучшить стиль')).toBeNull();
     expect(registry.findSkillByText('Рекламный текст').id).toBe('ad_text');
   });
