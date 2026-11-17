@@ -227,6 +227,19 @@ describe('движок: контекст свободного чата', () => {
     expect(visionPrompt).not.toContain('Заметки о стиле пользователя');
   });
 
+  it('свободный чат прикладывает главное меню даже без /start', async () => {
+    const { engine, message } = makeHarness();
+    const context = message(608, 'привет');
+
+    await engine.handleMessage(context);
+
+    const options = context.send.mock.calls.at(-1)[1];
+    const serialized = JSON.parse(options.keyboard.toString());
+    const labels = serialized.buttons.flat().map((b) => b.action.label);
+
+    expect(labels).toEqual(['Блогерам', 'Бизнесу', 'Обо мне']);
+  });
+
   it('история персистентна между загрузками хранилища', async () => {
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'textorio-chat-persist-'));
     const profileStore = createProfileStore({ dataDir });

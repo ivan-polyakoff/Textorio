@@ -629,7 +629,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
           return;
         }
 
-        await send(context, 'Сначала сгенерируйте текст — тогда я смогу его переделать. Выберите задачу в меню.');
+        await send(context, 'Сначала сгенерируйте текст — тогда я смогу его переделать. Выберите задачу в меню.', registry.mainMenuRows());
         return;
       }
 
@@ -649,8 +649,8 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       }
 
       // 7. Остальной свободный текст — отвечает персонаж бота.
-      // Клавиатуру не прикладываем: в VK показывается последняя отправленная,
-      // поэтому меню пользователя не «сваливается» в главное.
+      // Клавиатуру прикладываем всегда: пользователь мог никогда не видеть
+      // меню (без /start), а в VK показывается последняя отправленная.
       if (text) {
         const systemPrompt = applyStyleHint(persona.system, context.senderId);
         const history = profileStore ? getHistory(profileStore.load(context.senderId)) : [];
@@ -659,7 +659,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
           ? persona.historyWrapper(text, systemPrompt, historyText)
           : persona.replyWrapper(text, systemPrompt);
 
-        const { reply, refused } = await runGeneration(context, null, () => provider.chat(prompt));
+        const { reply, refused } = await runGeneration(context, registry.mainMenuRows(), () => provider.chat(prompt));
 
         // В историю пишем только осмысленные ответы: отказы и ошибки — нет.
         const isStorable = profileStore && reply && !refused && !isModelRefusal(reply) && reply !== GENERIC_ERROR_TEXT;
