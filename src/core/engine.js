@@ -142,7 +142,8 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       parts.push('Перепиши пост для социальной сети по правке пользователя. Исходное фото больше недоступно — опирайся на предыдущий вариант поста.');
       parts.push(`Предыдущий вариант поста:\n${generation.result}`);
     } else {
-      parts.push(skill.prompt(generation.input.text));
+      const preset = (skill.presets || []).find((item) => item.id === generation.input.preset) || null;
+      parts.push(skill.prompt(generation.input.text, preset));
       parts.push(`Предыдущий вариант:\n${generation.result}`);
     }
 
@@ -233,7 +234,8 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
   // --- Генерация по типам скиллов ---
 
   async function generateByText(skill, input, senderId) {
-    return provider.chat(applyStyleHint(skill.prompt(input), senderId));
+    const preset = (skill.presets || []).find((item) => item.id === input.preset) || null;
+    return provider.chat(applyStyleHint(skill.prompt(input.text, preset), senderId));
   }
 
   async function generateByPhoto(skill, photoUrls, caption, senderId) {
@@ -265,7 +267,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     if (skill.acceptsPhoto && input.photoUrls?.length) {
       return generateByVision(skill, input.text, input.photoUrls, context.senderId);
     }
-    return generateByText(skill, input.text, context.senderId);
+    return generateByText(skill, input, context.senderId);
   }
 
   // Гибрид «текст + фото»: описание/оффер в промпте, товар на фото.
@@ -294,10 +296,22 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
   async function handleSkillTriggered(skill, context) {
     setUserState(context.senderId, registry.stateOf(skill));
-    await send(context, skill.ask, registry.packRows(skill.pack));
+    const rows = skill.presets ? registry.presetRows(skill.id) : registry.packRows(skill.pack);
+    await send(context, skill.ask, rows);
   }
 
   async function handleSkillStateMessage(skill, context, userState) {
+    // Готовые стили (presets): текст кнопки выбирает стиль и держит состояние.
+    if (skill.presets && context.text) {
+      const preset = registry.findPreset(skill.id, context.text);
+
+      if (preset) {
+        setUserState(context.senderId, registry.stateOf(skill), { stylePreset: preset.id });
+        await send(context, `Стиль «${preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`, registry.presetRows(skill.id));
+        return;
+      }
+    }
+
     if (skill.kind === 'photo') {
       const photoUrls = getPhotoUrls(context);
 
@@ -343,11 +357,16 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     }
 
     deleteUserState(context.senderId);
+
+    const stylePreset = userState.stylePreset || null;
+    const input = { text: context.text };
+    if (stylePreset) input.preset = stylePreset;
+
     await runGeneration(
       context,
       registry.packRows(skill.pack),
-      () => runSkill(skill, context, { text: context.text }),
-      { skillId: skill.id, kind: skill.kind, input: { text: context.text }, feedbacks: [] }
+      () => runSkill(skill, context, input),
+      { skillId: skill.id, kind: skill.kind, input, feedbacks: [] }
     );
   }
 

@@ -13,6 +13,7 @@
 //
 //   kind: 'text' (по умолчанию):
 //   acceptsPhoto: true,              // фото опционально: есть фото — генерация по vision
+//   presets: [{ id, button, instruction }], // кнопки готовых стилей (см. style_improve)
 //   ask: '...',                      // что спросить после нажатия кнопки
 //   emptyAsk: '...',                 // если в состоянии пришло не текстовое сообщение
 //   prompt: (input) => '...',        // промпт для провайдера
@@ -166,6 +167,26 @@ function createSkillRegistry(packs, options = {}) {
     return skills.find((skill) => skill.id === skillId) || null;
   }
 
+  // Пресет стиля по тексту кнопки (кнопка нажимается внутри скилла).
+  function findPreset(skillId, text) {
+    const skill = findSkillById(skillId);
+    if (!skill?.presets) return null;
+    return skill.presets.find((preset) => preset.button === text) || null;
+  }
+
+  // Раскладка пресетов стиля: рядами по 2 + главное меню.
+  function presetRows(skillId) {
+    const skill = findSkillById(skillId);
+    if (!skill?.presets?.length) return null;
+
+    const rows = chunkRows(skill.presets.map((preset) => ({
+      label: preset.button,
+      color: 'secondary'
+    })));
+
+    return [...rows, [{ label: mainMenuButton, color: 'secondary' }]];
+  }
+
   function stateOf(skill) {
     return `waiting:${skill.id}`;
   }
@@ -218,6 +239,8 @@ function createSkillRegistry(packs, options = {}) {
     findSkillByText,
     findSkillByPrefix,
     findSkillById,
+    findPreset,
+    presetRows,
     findSkillByState,
     stateOf,
     detectIntent

@@ -115,6 +115,22 @@ describe('createSkillRegistry', () => {
     expect(registry.findSkillByText('/благодарность').id).toBe('thanks');
   });
 
+  it('пресеты стиля: раскладка и поиск по кнопке', () => {
+    const registry = makeRegistry();
+
+    const labels = registry.presetRows('style_improve').flat().map((b) => b.label);
+    expect(labels).toEqual([
+      'Строгий', 'Неформальный',
+      'Поэтичный', 'Довлатов',
+      'Пушкин', 'Бродский',
+      'Главное меню'
+    ]);
+
+    expect(registry.findPreset('style_improve', 'Довлатов').id).toBe('dovlatov');
+    expect(registry.findPreset('style_improve', 'Создать пост')).toBeNull();
+    expect(registry.presetRows('post_topic')).toBeNull();
+  });
+
   it('помощь раздела: определяется только в контексте открытого пака', () => {
     const registry = makeRegistry();
 

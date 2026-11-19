@@ -40,7 +40,17 @@ function makeHarness({ chatReply = 'ОТВЕТ' } = {}) {
     };
   }
 
-  return { engine, provider, profileStore, message };
+  function callback(senderId, payload) {
+    return {
+      userId: senderId,
+      peerId: senderId,
+      eventPayload: payload,
+      answer: jest.fn(async () => {}),
+      send: jest.fn(async () => {})
+    };
+  }
+
+  return { engine, provider, profileStore, message, callback };
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -98,6 +108,47 @@ describe('движок: бизнес-скиллы с опциональным ф
     await sleep(5);
     expect(provider.vision).toHaveBeenCalledTimes(2);
     expect(provider.vision.mock.calls[1][2]).toBe('');
+  });
+});
+
+describe('движок: пресеты стиля', () => {
+  it('кнопка скилла показывает пресеты, выбор стиля учитывается в промпте и правках', async () => {
+    const { engine, provider, profileStore, message, callback } = makeHarness();
+    const senderId = 801;
+
+    await engine.handleMessage(message(senderId, 'Улучшить стиль'));
+
+    const presetMessage = message(senderId, 'Строгий');
+    await engine.handleMessage(presetMessage);
+    expect(presetMessage.send.mock.calls[0][0]).toContain('Стиль «Строгий» выбрал');
+
+    const textMessage = message(senderId, 'Продали дачу. Звоните.');
+    await engine.handleMessage(textMessage);
+
+    expect(provider.chat).toHaveBeenCalledTimes(1);
+    const prompt = provider.chat.mock.calls[0][0];
+    expect(prompt).toContain('строгий деловой стиль');
+    expect(prompt).toContain('Продали дачу. Звоните.');
+
+    const generation = profileStore.load(senderId).lastGeneration;
+    expect(generation.input.preset).toBe('strict');
+
+    await sleep(5);
+    await engine.handleMessageEvent(callback(senderId, { a: 'regen', g: generation.id }));
+
+    expect(provider.chat).toHaveBeenCalledTimes(2);
+    expect(provider.chat.mock.calls[1][0]).toContain('строгий деловой стиль');
+  });
+
+  it('без пресета промпт не содержит блок стиля', async () => {
+    const { engine, provider, message } = makeHarness();
+    const senderId = 802;
+
+    await engine.handleMessage(message(senderId, 'Улучшить стиль'));
+    await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));
+
+    const prompt = provider.chat.mock.calls[0][0];
+    expect(prompt).not.toContain('Стиль оформления');
   });
 });
 
