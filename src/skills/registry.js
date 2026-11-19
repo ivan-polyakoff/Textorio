@@ -174,6 +174,15 @@ function createSkillRegistry(packs, options = {}) {
     return skill.presets.find((preset) => preset.button === text) || null;
   }
 
+  // Пресет по тексту кнопки среди всех скиллов: { skill, preset } или null.
+  function findPresetByText(text) {
+    for (const skill of skills) {
+      const preset = (skill.presets || []).find((item) => item.button === text);
+      if (preset) return { skill, preset };
+    }
+    return null;
+  }
+
   // Раскладка пресетов стиля: рядами по 2 + главное меню.
   function presetRows(skillId) {
     const skill = findSkillById(skillId);
@@ -240,6 +249,7 @@ function createSkillRegistry(packs, options = {}) {
     findSkillByPrefix,
     findSkillById,
     findPreset,
+    findPresetByText,
     presetRows,
     findSkillByState,
     stateOf,

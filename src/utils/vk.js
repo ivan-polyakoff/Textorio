@@ -38,14 +38,28 @@ function buildKeyboard(rows) {
   return builder;
 }
 
-// Инлайн-клавиатура реакций на результат генерации: 👍 / 👎 / 🔄.
+// Инлайн-клавиатура результата: стили (если есть) + реакции 👍 / 👎 / 🔄.
 // Привязывается к конкретному сообщению и не «залипает» в чате,
 // в отличие от обычной клавиатуры меню.
-// payload: { a: 'good'|'bad'|'regen', g: genId } — обрабатывается в engine.handleMessageEvent.
-function buildInlineFeedbackKeyboard(genId) {
+// payload: { a: 'good'|'bad'|'regen', g: genId } и { a: 'preset', p: presetId, g: genId }
+// — обрабатывается в engine.handleMessageEvent.
+function buildInlineFeedbackKeyboard(genId, presetButtons = null) {
   const Keyboard = getKeyboardModule();
 
   const builder = Keyboard.builder();
+
+  if (presetButtons && presetButtons.length > 0) {
+    presetButtons.forEach((preset, index) => {
+      if (index > 0 && index % 2 === 0) builder.row();
+      builder.callbackButton({
+        label: preset.button,
+        payload: { a: 'preset', p: preset.id, g: genId },
+        color: Keyboard.SECONDARY_COLOR
+      });
+    });
+    builder.row();
+  }
+
   builder.callbackButton({
     label: '👍',
     payload: { a: 'good', g: genId },

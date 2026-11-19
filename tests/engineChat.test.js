@@ -112,11 +112,20 @@ describe('движок: бизнес-скиллы с опциональным ф
 });
 
 describe('движок: пресеты стиля', () => {
-  it('кнопка скилла показывает пресеты, выбор стиля учитывается в промпте и правках', async () => {
-    const { engine, provider, profileStore, message, callback } = makeHarness();
+  function labelsOf(options) {
+    const keyboard = JSON.parse(options.keyboard.toString());
+    return keyboard.buttons.flat().map((button) => button.action.label);
+  }
+
+  it('кнопка скилла показывает стили, выбор до текста учитывается и в правках', async () => {
+    const { engine, provider, profileStore, message } = makeHarness();
     const senderId = 801;
 
-    await engine.handleMessage(message(senderId, 'Улучшить стиль'));
+    const trigger = message(senderId, 'Улучшить стиль');
+    await engine.handleMessage(trigger);
+    expect(labelsOf(trigger.send.mock.calls[0][1])).toEqual([
+      'Строгий', 'Неформальный', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский', 'Главное меню'
+    ]);
 
     const presetMessage = message(senderId, 'Строгий');
     await engine.handleMessage(presetMessage);
@@ -130,19 +139,83 @@ describe('движок: пресеты стиля', () => {
     expect(prompt).toContain('строгий деловой стиль');
     expect(prompt).toContain('Продали дачу. Звоните.');
 
+    const keyboard = JSON.parse(textMessage.send.mock.calls[0][1].keyboard.toString());
+    expect(keyboard.inline).toBe(true);
+    const presetButtons = keyboard.buttons.flat().filter((b) => {
+      const payload = typeof b.action.payload === 'string' ? JSON.parse(b.action.payload) : b.action.payload;
+      return payload.a === 'preset';
+    });
+    expect(presetButtons.map((b) => b.action.label)).toEqual([
+      'Строгий', 'Неформальный', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский'
+    ]);
+
     const generation = profileStore.load(senderId).lastGeneration;
     expect(generation.input.preset).toBe('strict');
 
     await sleep(5);
-    await engine.handleMessageEvent(callback(senderId, { a: 'regen', g: generation.id }));
+    await engine.handleMessageEvent({ userId: senderId, peerId: senderId, eventPayload: { a: 'regen', g: generation.id }, answer: jest.fn(async () => {}), send: jest.fn(async () => {}) });
 
     expect(provider.chat).toHaveBeenCalledTimes(2);
     expect(provider.chat.mock.calls[1][0]).toContain('строгий деловой стиль');
   });
 
+  it('кнопка стиля после результата переделывает последний текст', async () => {
+    const { engine, provider, profileStore, message } = makeHarness({ chatReply: 'Первый вариант' });
+    const senderId = 802;
+
+    await engine.handleMessage(message(senderId, 'Улучшить стиль'));
+    await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));
+
+    await sleep(5);
+    await engine.handleMessage(message(senderId, 'Пушкин'));
+
+    expect(provider.chat).toHaveBeenCalledTimes(2);
+    const prompt = provider.chat.mock.calls[1][0];
+    expect(prompt).toContain('манера Александра Пушкина');
+    expect(prompt).toContain('Предыдущий вариант');
+    expect(prompt).toContain('Продали дачу. Звоните.');
+
+    const generation = profileStore.load(senderId).lastGeneration;
+    expect(generation.input.preset).toBe('pushkin');
+  });
+
+  it('инлайн-кнопка стиля переделывает результат', async () => {
+    const { engine, provider, profileStore, message } = makeHarness({ chatReply: 'Первый вариант' });
+    const senderId = 803;
+
+    await engine.handleMessage(message(senderId, 'Улучшить стиль'));
+    await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));
+
+    const generation = profileStore.load(senderId).lastGeneration;
+    await sleep(5);
+    await engine.handleMessageEvent({
+      userId: senderId,
+      peerId: senderId,
+      eventPayload: { a: 'preset', p: 'dovlatov', g: generation.id },
+      answer: jest.fn(async () => {}),
+      send: jest.fn(async () => {})
+    });
+
+    expect(provider.chat).toHaveBeenCalledTimes(2);
+    expect(provider.chat.mock.calls[1][0]).toContain('манера Сергея Довлатова');
+    expect(profileStore.load(senderId).lastGeneration.input.preset).toBe('dovlatov');
+  });
+
+  it('кнопка стиля без результата запускает «Улучшить стиль» с выбранным стилем', async () => {
+    const { engine, provider, message } = makeHarness();
+    const senderId = 804;
+
+    const presetMessage = message(senderId, 'Бродский');
+    await engine.handleMessage(presetMessage);
+    expect(presetMessage.send.mock.calls[0][0]).toContain('Стиль «Бродский» выбрал');
+
+    await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));
+    expect(provider.chat.mock.calls[0][0]).toContain('манера Иосифа Бродского');
+  });
+
   it('без пресета промпт не содержит блок стиля', async () => {
     const { engine, provider, message } = makeHarness();
-    const senderId = 802;
+    const senderId = 805;
 
     await engine.handleMessage(message(senderId, 'Улучшить стиль'));
     await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));

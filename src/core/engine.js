@@ -134,7 +134,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
   // Промпт перегенерации: исходная задача + предыдущий результат + правка.
   // Для фото-скиллов правим текст результата (ссылки на фото ВК протухают).
-  function buildRevisionPrompt(skill, generation, critique, senderId) {
+  function buildRevisionPrompt(skill, generation, critique, senderId, presetOverride = null) {
     const parts = [];
 
     if (skill.kind === 'photo') {
@@ -142,12 +142,14 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       parts.push('Перепиши пост для социальной сети по правке пользователя. Исходное фото больше недоступно — опирайся на предыдущий вариант поста.');
       parts.push(`Предыдущий вариант поста:\n${generation.result}`);
     } else {
-      const preset = (skill.presets || []).find((item) => item.id === generation.input.preset) || null;
+      const preset = presetOverride || (skill.presets || []).find((item) => item.id === generation.input.preset) || null;
       parts.push(skill.prompt(generation.input.text, preset));
       parts.push(`Предыдущий вариант:\n${generation.result}`);
     }
 
-    if (critique) {
+    if (presetOverride) {
+      parts.push(`Перепиши предыдущий вариант в заданном стиле оформления («${presetOverride.button}»): сохрани смысл и факты, измени манеру.`);
+    } else if (critique) {
       parts.push(`Пользователь недоволен результатом. Замечание: «${critique}». Перепиши, полностью учтя замечание, и сохрани достоинства предыдущего варианта.`);
     } else {
       parts.push('Сделай другой вариант: измени угол подачи и формулировки. Не повторяй предыдущий вариант дословно, сохрани качество и смысл.');
@@ -181,6 +183,30 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       input: generation.input,
       feedbacks
     });
+  }
+
+  // Переделка последнего результата в выбранном готовом стиле.
+  async function restyleFromPreset(context, generation, preset) {
+    const skill = registry.findSkillById(generation.skillId);
+
+    if (!skill) {
+      await send(context, 'Не нашёл исходную задачу — запустите её заново из меню.', registry.mainMenuRows());
+      return;
+    }
+
+    const input = { ...generation.input, preset: preset.id };
+
+    await runGeneration(
+      context,
+      null,
+      () => provider.chat(buildRevisionPrompt(skill, generation, null, context.senderId, preset)),
+      {
+        skillId: skill.id,
+        kind: skill.kind,
+        input,
+        feedbacks: [...(generation.feedbacks || [])]
+      }
+    );
   }
 
   async function runGeneration(context, rows, task, meta = null) {
@@ -222,7 +248,8 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
     if (meta) {
       const generation = saveGeneration(context.senderId, meta, reply, meta.feedbacks);
-      await send(context, reply, null, generation ? buildInlineFeedbackKeyboard(generation.id) : undefined);
+      const presets = registry.findSkillById(meta.skillId)?.presets || null;
+      await send(context, reply, null, generation ? buildInlineFeedbackKeyboard(generation.id, presets) : undefined);
       return { reply, refused };
     }
 
@@ -628,6 +655,26 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
         return;
       }
 
+      // 4.5 Кнопка готового стиля: переделываем последний результат
+      // или запоминаем стиль до ввода текста.
+      if (text) {
+        const presetPick = registry.findPresetByText(text);
+
+        if (presetPick) {
+          const generation = getActiveGeneration(context.senderId);
+
+          if (generation && generation.skillId === presetPick.skill.id && generation.kind !== 'photo') {
+            deleteUserState(context.senderId);
+            await restyleFromPreset(context, generation, presetPick.preset);
+            return;
+          }
+
+          setUserState(context.senderId, registry.stateOf(presetPick.skill), { stylePreset: presetPick.preset.id });
+          await send(context, `Стиль «${presetPick.preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`, registry.presetRows(presetPick.skill.id));
+          return;
+        }
+      }
+
       // 5. Команда с аргументом: "/команда текст" — генерация без состояния.
       const argSkill = registry.findSkillByPrefix(text);
       if (argSkill) {
@@ -751,6 +798,24 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
         await safeAnswer(context, 'Сейчас спрошу правку');
         setUserState(senderId, 'awaiting_critique');
         await context.send('Понял. Что не так? Напишите, что поправить, — и я переделаю текст.');
+        return;
+      }
+
+      if (payload.a === 'preset') {
+        const skill = registry.findSkillById(generation.skillId);
+        const preset = (skill?.presets || []).find((item) => item.id === payload.p);
+
+        if (!preset) {
+          await safeAnswer(context, 'Не понял стиль');
+          return;
+        }
+
+        await safeAnswer(context, `Переделываю в стиле «${preset.button}»`);
+        await restyleFromPreset(
+          { senderId, peerId: context.peerId, send: (text, params) => context.send(text, params) },
+          generation,
+          preset
+        );
         return;
       }
 
