@@ -159,7 +159,7 @@ describe('движок: пресеты стиля', () => {
     expect(provider.chat.mock.calls[1][0]).toContain('строгий деловой стиль');
   });
 
-  it('кнопка стиля после результата переделывает последний текст', async () => {
+  it('кнопка стиля после результата переделывает исходный текст, а не предыдущий вариант', async () => {
     const { engine, provider, profileStore, message } = makeHarness({ chatReply: 'Первый вариант' });
     const senderId = 802;
 
@@ -170,13 +170,24 @@ describe('движок: пресеты стиля', () => {
     await engine.handleMessage(message(senderId, 'Пушкин'));
 
     expect(provider.chat).toHaveBeenCalledTimes(2);
-    const prompt = provider.chat.mock.calls[1][0];
-    expect(prompt).toContain('манера Александра Пушкина');
-    expect(prompt).toContain('Предыдущий вариант');
-    expect(prompt).toContain('Продали дачу. Звоните.');
+    const firstRestyle = provider.chat.mock.calls[1][0];
+    expect(firstRestyle).toContain('манера Александра Пушкина');
+    expect(firstRestyle).toContain('Продали дачу. Звоните.');
+    expect(firstRestyle).not.toContain('Предыдущий вариант');
+    expect(firstRestyle).not.toContain('Первый вариант');
+
+    await sleep(5);
+    await engine.handleMessage(message(senderId, 'Довлатов'));
+
+    expect(provider.chat).toHaveBeenCalledTimes(3);
+    const secondRestyle = provider.chat.mock.calls[2][0];
+    expect(secondRestyle).toContain('манера Сергея Довлатова');
+    expect(secondRestyle).toContain('Продали дачу. Звоните.');
+    expect(secondRestyle).not.toContain('Первый вариант');
 
     const generation = profileStore.load(senderId).lastGeneration;
-    expect(generation.input.preset).toBe('pushkin');
+    expect(generation.input.preset).toBe('dovlatov');
+    expect(generation.input.text).toBe('Продали дачу. Звоните.');
   });
 
   it('инлайн-кнопка стиля переделывает результат', async () => {
@@ -197,7 +208,10 @@ describe('движок: пресеты стиля', () => {
     });
 
     expect(provider.chat).toHaveBeenCalledTimes(2);
-    expect(provider.chat.mock.calls[1][0]).toContain('манера Сергея Довлатова');
+    const prompt = provider.chat.mock.calls[1][0];
+    expect(prompt).toContain('манера Сергея Довлатова');
+    expect(prompt).toContain('Продали дачу. Звоните.');
+    expect(prompt).not.toContain('Первый вариант');
     expect(profileStore.load(senderId).lastGeneration.input.preset).toBe('dovlatov');
   });
 

@@ -134,7 +134,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
   // Промпт перегенерации: исходная задача + предыдущий результат + правка.
   // Для фото-скиллов правим текст результата (ссылки на фото ВК протухают).
-  function buildRevisionPrompt(skill, generation, critique, senderId, presetOverride = null) {
+  function buildRevisionPrompt(skill, generation, critique, senderId) {
     const parts = [];
 
     if (skill.kind === 'photo') {
@@ -142,14 +142,12 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       parts.push('Перепиши пост для социальной сети по правке пользователя. Исходное фото больше недоступно — опирайся на предыдущий вариант поста.');
       parts.push(`Предыдущий вариант поста:\n${generation.result}`);
     } else {
-      const preset = presetOverride || (skill.presets || []).find((item) => item.id === generation.input.preset) || null;
+      const preset = (skill.presets || []).find((item) => item.id === generation.input.preset) || null;
       parts.push(skill.prompt(generation.input.text, preset));
       parts.push(`Предыдущий вариант:\n${generation.result}`);
     }
 
-    if (presetOverride) {
-      parts.push(`Перепиши предыдущий вариант в заданном стиле оформления («${presetOverride.button}»): сохрани смысл и факты, измени манеру.`);
-    } else if (critique) {
+    if (critique) {
       parts.push(`Пользователь недоволен результатом. Замечание: «${critique}». Перепиши, полностью учтя замечание, и сохрани достоинства предыдущего варианта.`);
     } else {
       parts.push('Сделай другой вариант: измени угол подачи и формулировки. Не повторяй предыдущий вариант дословно, сохрани качество и смысл.');
@@ -185,6 +183,18 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     });
   }
 
+  // Промпт смены стиля: строго исходный текст пользователя.
+  // Предыдущие варианты намеренно не передаём — иначе модель переписывает
+  // уже изменённый текст и стиль «дрейфует» от оригинала.
+  function buildPresetPrompt(skill, generation, preset, senderId) {
+    const parts = [
+      skill.prompt(generation.input.text, preset),
+      'Перепиши именно исходный текст в заданном стиле оформления. Сохрани смысл и факты, не опирайся на предыдущие варианты.'
+    ];
+
+    return applyStyleHint(parts.join('\n\n'), senderId);
+  }
+
   // Переделка последнего результата в выбранном готовом стиле.
   async function restyleFromPreset(context, generation, preset) {
     const skill = registry.findSkillById(generation.skillId);
@@ -199,7 +209,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     await runGeneration(
       context,
       null,
-      () => provider.chat(buildRevisionPrompt(skill, generation, null, context.senderId, preset)),
+      () => provider.chat(buildPresetPrompt(skill, generation, preset, context.senderId)),
       {
         skillId: skill.id,
         kind: skill.kind,
