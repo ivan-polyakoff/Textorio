@@ -14,6 +14,15 @@ const MAX_LIKED_IN_HINT = 200;
 
 const nowIso = () => new Date().toISOString();
 
+// Генерация по фото (включая гибрид «текст + фото»): её результат и замечания
+// описывают конкретный кадр, а не стиль текста. В память стиля такое не пишем,
+// иначе «На фото дорожный набор с тапочками» всплывает в промптах.
+function isPhotoGeneration(generation) {
+  if (!generation) return false;
+  if (generation.kind === 'photo') return true;
+  return Array.isArray(generation.input?.photoUrls) && generation.input.photoUrls.length > 0;
+}
+
 function excerpt(text, maxLength = MAX_EXCERPT_LENGTH) {
   const value = String(text || '').replace(/\s+/g, ' ').trim();
 
@@ -82,7 +91,7 @@ function recordLike(profile, generation) {
 
   // Память стиля учит только текстовые генерации: фото-критика описывает
   // содержимое конкретного кадра и не должна попадать в промпты.
-  if (generation?.kind === 'photo') return data.styleCard;
+  if (isPhotoGeneration(generation)) return data.styleCard;
 
   const text = excerpt(generation?.result);
 
@@ -116,7 +125,7 @@ function recordDislike(profile, generation, critique) {
   const data = ensureStyle(profile);
 
   // См. recordLike: фото-критика — про содержимое кадра, не про стиль текста.
-  if (generation?.kind === 'photo') return data.styleCard;
+  if (isPhotoGeneration(generation)) return data.styleCard;
 
   const note = excerpt(critique);
 
@@ -197,5 +206,6 @@ module.exports = {
   styleHint,
   describeStyle,
   clearStyle,
-  excerpt
+  excerpt,
+  isPhotoGeneration
 };

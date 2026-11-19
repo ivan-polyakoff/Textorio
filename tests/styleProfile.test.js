@@ -81,6 +81,23 @@ describe('память стиля', () => {
     expect(styleHint(profile)).toBeNull();
   });
 
+  it('гибридные генерации «текст + фото» тоже не учат память стиля', () => {
+    const profile = blank();
+    const generation = {
+      id: 'h1',
+      kind: 'text',
+      input: { text: 'описание товара', photoUrls: ['https://example/photo.jpg'] },
+      result: 'рекламный текст'
+    };
+
+    recordLike(profile, generation);
+    recordDislike(profile, generation, 'На фото дорожный набор с тапочками');
+
+    expect(profile.profile.liked).toHaveLength(0);
+    expect(profile.profile.disliked).toHaveLength(0);
+    expect(styleHint(profile)).toBeNull();
+  });
+
   it('хранит только последние 5 примеров', () => {
     const profile = blank();
 
