@@ -3,7 +3,7 @@
 // через контракт (src/providers/provider.js). Ни VK, ни GigaChat здесь не упоминаются.
 // Специфика VK (клавиатуры vk-io, скачивание фото) остаётся в transport.
 
-const { sendWithOptionalKeyboard, getPhotoUrls, withTyping, buildKeyboard, buildInlineFeedbackKeyboard } = require('../utils/vk');
+const { sendWithOptionalKeyboard, getPhotoUrls, withTyping, buildKeyboard, buildInlineFeedbackKeyboard, buildInlineStyleKeyboard } = require('../utils/vk');
 const { createRateLimiter } = require('../utils/rateLimiter');
 const { getPersona } = require('../config/persona');
 const { SAFETY_RULES } = require('../config/safety');
@@ -63,6 +63,18 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
   function deleteUserState(senderId) {
     userStates.delete(senderId);
+  }
+
+  // Инлайн-клавиатура стилей: остаётся видимой, пока пользователь печатает.
+  function styleKeyboard(skill) {
+    const pack = registry.getPack(skill.pack);
+
+    return buildInlineStyleKeyboard({
+      presets: skill.presets,
+      skillId: skill.id,
+      backLabel: pack?.button || registry.mainMenuButton,
+      packId: skill.pack
+    });
   }
 
   async function send(context, text, rows = null, keyboardOverride = undefined) {
@@ -333,8 +345,13 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
   async function handleSkillTriggered(skill, context) {
     setUserState(context.senderId, registry.stateOf(skill));
-    const rows = skill.presets ? registry.presetRows(skill.id) : registry.packRows(skill.pack);
-    await send(context, skill.ask, rows);
+
+    if (skill.presets) {
+      await send(context, skill.ask, null, styleKeyboard(skill));
+      return;
+    }
+
+    await send(context, skill.ask, registry.packRows(skill.pack));
   }
 
   async function handleSkillStateMessage(skill, context, userState) {
@@ -344,7 +361,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
       if (preset) {
         setUserState(context.senderId, registry.stateOf(skill), { stylePreset: preset.id });
-        await send(context, `Стиль «${preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`, registry.presetRows(skill.id));
+        await send(context, `Стиль «${preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`, null, styleKeyboard(skill));
         return;
       }
     }
@@ -680,7 +697,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
           }
 
           setUserState(context.senderId, registry.stateOf(presetPick.skill), { stylePreset: presetPick.preset.id });
-          await send(context, `Стиль «${presetPick.preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`, registry.presetRows(presetPick.skill.id));
+          await send(context, `Стиль «${presetPick.preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`, null, styleKeyboard(presetPick.skill));
           return;
         }
       }
@@ -767,7 +784,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       const payload = context.eventPayload || {};
 
       // Чужие/неопознанные события игнорируем.
-      if (!payload.a || !payload.g) return;
+      if (!payload.a) return;
 
       const senderId = context.userId ?? context.senderId;
 
@@ -776,6 +793,44 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
         logger.warn(`Событие от заблокированного пользователя ${senderId} проигнорировано.`);
         return;
       }
+
+      // Возврат из списка стилей в раздел пака.
+      if (payload.a === 'back') {
+        const pack = registry.getPack(payload.pk);
+
+        deleteUserState(senderId);
+
+        if (pack) {
+          setUserState(senderId, `pack:${pack.id}`);
+          await safeAnswer(context, 'Возвращаюсь в раздел');
+          await context.send(pack.menuText, { keyboard: buildKeyboard(registry.packRows(pack.id)) });
+          return;
+        }
+
+        await context.send(registry.findNavigation('/start').text, { keyboard: buildKeyboard(registry.mainMenuRows()) });
+        return;
+      }
+
+      // Выбор готового стиля до ввода текста — состояния и генерации ещё нет.
+      if (payload.a === 'style') {
+        const skill = registry.findSkillById(payload.s);
+        const preset = (skill?.presets || []).find((item) => item.id === payload.p);
+
+        if (!skill || !preset) {
+          await safeAnswer(context, 'Не понял стиль');
+          return;
+        }
+
+        setUserState(senderId, registry.stateOf(skill), { stylePreset: preset.id });
+        await safeAnswer(context, `Стиль «${preset.button}» выбран`);
+        await context.send(`Стиль «${preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`, {
+          keyboard: styleKeyboard(skill)
+        });
+        return;
+      }
+
+      // Остальные действия привязаны к конкретной генерации.
+      if (!payload.g) return;
 
       const generation = getActiveGeneration(senderId);
 

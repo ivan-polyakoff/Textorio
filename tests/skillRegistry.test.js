@@ -123,7 +123,7 @@ describe('createSkillRegistry', () => {
       'Строгий', 'Неформальный',
       'Поэтичный', 'Довлатов',
       'Пушкин', 'Бродский',
-      'Главное меню'
+      'Я — автор'
     ]);
 
     expect(registry.findPreset('style_improve', 'Довлатов').id).toBe('dovlatov');

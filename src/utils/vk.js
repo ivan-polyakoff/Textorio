@@ -79,6 +79,33 @@ function buildInlineFeedbackKeyboard(genId, presetButtons = null) {
   return builder;
 }
 
+// Инлайн-клавиатура выбора стиля под запросом текста. В отличие от reply-клавиатуры,
+// остаётся видимой, пока пользователь набирает сообщение.
+// payload: { a: 'style', s: skillId, p: presetId } и { a: 'back', pk: packId }.
+function buildInlineStyleKeyboard({ presets, skillId, backLabel, packId }) {
+  const Keyboard = getKeyboardModule();
+
+  const builder = Keyboard.builder();
+
+  presets.forEach((preset, index) => {
+    if (index > 0 && index % 2 === 0) builder.row();
+    builder.callbackButton({
+      label: preset.button,
+      payload: { a: 'style', s: skillId, p: preset.id },
+      color: Keyboard.SECONDARY_COLOR
+    });
+  });
+
+  builder.row();
+  builder.callbackButton({
+    label: backLabel,
+    payload: { a: 'back', pk: packId },
+    color: Keyboard.SECONDARY_COLOR
+  });
+  builder.inline(true);
+  return builder;
+}
+
 function splitMessage(text, maxLength = VK_MESSAGE_MAX_LENGTH) {
   const source = String(text ?? '');
 
@@ -191,5 +218,6 @@ module.exports = {
   getPhotoUrls,
   withTyping,
   buildKeyboard,
-  buildInlineFeedbackKeyboard
+  buildInlineFeedbackKeyboard,
+  buildInlineStyleKeyboard
 };

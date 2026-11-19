@@ -123,8 +123,10 @@ describe('движок: пресеты стиля', () => {
 
     const trigger = message(senderId, 'Улучшить стиль');
     await engine.handleMessage(trigger);
+    const triggerKeyboard = JSON.parse(trigger.send.mock.calls[0][1].keyboard.toString());
+    expect(triggerKeyboard.inline).toBe(true);
     expect(labelsOf(trigger.send.mock.calls[0][1])).toEqual([
-      'Строгий', 'Неформальный', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский', 'Главное меню'
+      'Строгий', 'Неформальный', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский', 'Я — автор'
     ]);
 
     const presetMessage = message(senderId, 'Строгий');
@@ -213,6 +215,23 @@ describe('движок: пресеты стиля', () => {
     expect(prompt).toContain('Продали дачу. Звоните.');
     expect(prompt).not.toContain('Первый вариант');
     expect(profileStore.load(senderId).lastGeneration.input.preset).toBe('dovlatov');
+  });
+
+  it('инлайн-кнопка стиля до текста запоминает стиль, «Я — автор» возвращает в раздел', async () => {
+    const { engine, provider, message, callback } = makeHarness();
+    const senderId = 806;
+
+    await engine.handleMessage(message(senderId, 'Улучшить стиль'));
+
+    const backEvent = callback(senderId, { a: 'back', pk: 'bloggers' });
+    await engine.handleMessageEvent(backEvent);
+    expect(backEvent.send.mock.calls[0][0]).toContain('Раздел для авторов');
+
+    await engine.handleMessage(message(senderId, 'Улучшить стиль'));
+    await engine.handleMessageEvent(callback(senderId, { a: 'style', s: 'style_improve', p: 'poetic' }));
+
+    await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));
+    expect(provider.chat.mock.calls[0][0]).toContain('поэтичный образный стиль');
   });
 
   it('кнопка стиля без результата запускает «Улучшить стиль» с выбранным стилем', async () => {
