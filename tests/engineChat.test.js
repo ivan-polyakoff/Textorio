@@ -174,6 +174,7 @@ describe('движок: пресеты стиля', () => {
     expect(provider.chat).toHaveBeenCalledTimes(2);
     const firstRestyle = provider.chat.mock.calls[1][0];
     expect(firstRestyle).toContain('манера Александра Пушкина');
+    expect(firstRestyle).toContain('Форма (обязательна): стихотворение');
     expect(firstRestyle).toContain('Продали дачу. Звоните.');
     expect(firstRestyle).not.toContain('Предыдущий вариант');
     expect(firstRestyle).not.toContain('Первый вариант');
@@ -184,6 +185,7 @@ describe('движок: пресеты стиля', () => {
     expect(provider.chat).toHaveBeenCalledTimes(3);
     const secondRestyle = provider.chat.mock.calls[2][0];
     expect(secondRestyle).toContain('манера Сергея Довлатова');
+    expect(secondRestyle).not.toContain('стихотворение');
     expect(secondRestyle).toContain('Продали дачу. Звоните.');
     expect(secondRestyle).not.toContain('Первый вариант');
 
@@ -243,7 +245,9 @@ describe('движок: пресеты стиля', () => {
     expect(presetMessage.send.mock.calls[0][0]).toContain('Стиль «Бродский» выбрал');
 
     await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));
-    expect(provider.chat.mock.calls[0][0]).toContain('манера Иосифа Бродского');
+    const prompt = provider.chat.mock.calls[0][0];
+    expect(prompt).toContain('манера Иосифа Бродского');
+    expect(prompt).toContain('Форма (обязательна): стихотворение');
   });
 
   it('без пресета промпт не содержит блок стиля', async () => {
