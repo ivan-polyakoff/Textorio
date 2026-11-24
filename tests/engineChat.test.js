@@ -279,6 +279,23 @@ describe('движок: пресеты стиля', () => {
     expect(provider.chat.mock.calls[0][0]).toContain('поэтичный образный стиль');
   });
 
+  it('кнопка стиля под результатом сразу переделывает текст, не прося новый', async () => {
+    const { engine, provider, message, callback } = makeHarness({ chatReply: 'Первый вариант' });
+    const senderId = 810;
+
+    await engine.handleMessage(message(senderId, 'Улучшить стиль'));
+    await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));
+    expect(provider.chat).toHaveBeenCalledTimes(1);
+
+    await sleep(5);
+    const styleEvent = callback(senderId, { a: 'style', s: 'style_improve', p: 'casual' });
+    await engine.handleMessageEvent(styleEvent);
+
+    expect(provider.chat).toHaveBeenCalledTimes(2);
+    expect(provider.chat.mock.calls[1][0]).toContain('тимлид');
+    expect(styleEvent.send.mock.calls.every((call) => !String(call[0]).includes('пришлите текст'))).toBe(true);
+  });
+
   it('Пушкин спрашивает форму: проза даёт прозаический промпт', async () => {
     const { engine, provider, message, callback } = makeHarness();
     const senderId = 807;

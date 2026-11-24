@@ -885,6 +885,25 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
           return;
         }
 
+        // Кнопка из меню под результатом — переделываем последний текст,
+        // а не просим прислать новый.
+        const generation = getActiveGeneration(senderId);
+
+        if (generation && generation.skillId === skill.id && generation.kind !== 'photo') {
+          if (preset.verseChoice) {
+            await askVerse(context, skill, preset, generation);
+            return;
+          }
+
+          await safeAnswer(context, `Переделываю в стиле «${preset.button}»`);
+          await restyleFromPreset(
+            { senderId, peerId: context.peerId, send: (text, params) => context.send(text, params) },
+            generation,
+            preset
+          );
+          return;
+        }
+
         setUserState(senderId, registry.stateOf(skill), { stylePreset: preset.id });
         await safeAnswer(context, `Стиль «${preset.button}» выбран`);
 
