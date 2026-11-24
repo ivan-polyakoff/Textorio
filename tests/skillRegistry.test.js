@@ -121,7 +121,7 @@ describe('createSkillRegistry', () => {
     const labels = registry.presetRows('style_improve').flat().map((b) => b.label);
     expect(labels).toEqual([
       'Деловой', 'Неформальный',
-      'Дружеский', 'Поэтичный',
+      'Дружеский', 'Поэтичный', 'Патетический',
       'Довлатов', 'Пушкин', 'Бродский',
       'Назад'
     ]);

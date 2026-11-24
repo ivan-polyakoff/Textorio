@@ -128,7 +128,7 @@ describe('движок: пресеты стиля', () => {
     const triggerKeyboard = JSON.parse(trigger.send.mock.calls[1][1].keyboard.toString());
     expect(triggerKeyboard.inline).toBe(true);
     expect(labelsOf(trigger.send.mock.calls[1][1])).toEqual([
-      'Деловой', 'Неформальный', 'Дружеский', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский', 'Помощь', 'Назад'
+      'Деловой', 'Неформальный', 'Дружеский', 'Поэтичный', 'Патетический', 'Довлатов', 'Пушкин', 'Бродский', 'Помощь', 'Назад'
     ]);
 
     const presetMessage = message(senderId, 'Деловой');
@@ -161,7 +161,7 @@ describe('движок: пресеты стиля', () => {
       return payload.a === 'style';
     });
     expect(presetButtons.map((b) => b.action.label)).toEqual([
-      'Деловой', 'Неформальный', 'Дружеский', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский'
+      'Деловой', 'Неформальный', 'Дружеский', 'Поэтичный', 'Патетический', 'Довлатов', 'Пушкин', 'Бродский'
     ]);
 
     const generation = profileStore.load(senderId).lastGeneration;
