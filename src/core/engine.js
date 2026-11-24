@@ -400,7 +400,8 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
           return;
         }
 
-        await send(context, `Стиль «${preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`, null, styleKeyboard(skill));
+        // Подтверждение без клавиатуры: меню стилей уже висит на предыдущем сообщении.
+        await send(context, `Стиль «${preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`);
         return;
       }
     }
@@ -749,7 +750,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
             return;
           }
 
-          await send(context, `Стиль «${presetPick.preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`, null, styleKeyboard(presetPick.skill));
+          await send(context, `Стиль «${presetPick.preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`);
           return;
         }
       }
@@ -881,9 +882,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
           return;
         }
 
-        await context.send(`Стиль «${preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`, {
-          keyboard: styleKeyboard(skill)
-        });
+        await context.send(`Стиль «${preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`);
         return;
       }
 
@@ -933,9 +932,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
         setUserState(senderId, registry.stateOf(skill), { stylePreset: preset.id, verse });
         await safeAnswer(context, verse ? 'Стихи' : 'Проза');
-        await context.send(`Стиль «${preset.button}» выбран, форма — ${verse ? 'стихи' : 'проза'}. Теперь пришлите текст, который нужно улучшить.`, {
-          keyboard: styleKeyboard(skill)
-        });
+        await context.send(`Стиль «${preset.button}» выбран, форма — ${verse ? 'стихи' : 'проза'}. Теперь пришлите текст, который нужно улучшить.`);
         return;
       }
 
