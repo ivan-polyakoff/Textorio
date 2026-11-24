@@ -276,7 +276,7 @@ describe('движок: пресеты стиля', () => {
     await engine.handleMessageEvent(callback(senderId, { a: 'style', s: 'style_improve', p: 'poetic' }));
 
     await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));
-    expect(provider.chat.mock.calls[0][0]).toContain('поэтичный образный стиль');
+    expect(provider.chat.mock.calls[0][0]).toContain('увеличительное стекло');
   });
 
   it('эхо промпта от модели не показывается, просим текст заново', async () => {
