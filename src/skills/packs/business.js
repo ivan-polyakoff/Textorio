@@ -8,6 +8,7 @@ const WORD_END = '(?![а-яё])'; // \b в JS не работает с кири�
 module.exports = {
   id: 'business',
   button: 'Я — продавец',
+  icon: '🛒',
   color: 'positive',
   menuText: 'Раздел для продавцов. Выберите задачу.',
   helpText: BUSINESS_HELP,
@@ -17,6 +18,7 @@ module.exports = {
       kind: 'text',
       acceptsPhoto: true,
       button: 'Описание товара',
+      icon: '🏷️',
       command: '/товар',
       color: 'positive',
       intents: [
@@ -49,6 +51,7 @@ module.exports = {
       kind: 'text',
       acceptsPhoto: true,
       button: 'Рекламный текст',
+      icon: '📣',
       command: '/реклама',
       color: 'positive',
       intents: [
@@ -78,6 +81,7 @@ module.exports = {
       kind: 'text',
       acceptsPhoto: true,
       button: 'Ответ клиенту',
+      icon: '💬',
       command: '/ответ',
       color: 'primary',
       intents: [

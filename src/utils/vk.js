@@ -52,7 +52,7 @@ function buildInlineFeedbackKeyboard(genId, presetButtons = null, back = null) {
     presetButtons.forEach((preset, index) => {
       if (index > 0 && index % 2 === 0) builder.row();
       builder.callbackButton({
-        label: preset.button,
+        label: preset.icon ? `${preset.icon} ${preset.button}` : preset.button,
         payload: { a: 'preset', p: preset.id, g: genId },
         color: Keyboard.SECONDARY_COLOR
       });
@@ -105,7 +105,7 @@ function buildInlineStyleKeyboard({ presets, skillId, backLabel, packId }) {
   presets.forEach((preset, index) => {
     if (index > 0 && index % 2 === 0) builder.row();
     builder.callbackButton({
-      label: preset.button,
+      label: preset.icon ? `${preset.icon} ${preset.button}` : preset.button,
       payload: { a: 'style', s: skillId, p: preset.id },
       color: Keyboard.SECONDARY_COLOR
     });
@@ -113,7 +113,7 @@ function buildInlineStyleKeyboard({ presets, skillId, backLabel, packId }) {
 
   builder.row();
   builder.callbackButton({
-    label: 'Помощь',
+    label: '❓ Помощь',
     payload: { a: 'styleHelp', s: skillId },
     color: Keyboard.SECONDARY_COLOR
   });

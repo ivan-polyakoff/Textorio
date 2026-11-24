@@ -13,7 +13,7 @@ describe('createSkillRegistry', () => {
     const start = registry.findNavigation('/start');
     expect(start.isWelcome).toBe(true);
     expect(start.text).toContain('Textorio');
-    expect(start.rows.flat().map((b) => b.label)).toEqual(['Я — автор', 'Я — продавец', 'Обо мне']);
+    expect(start.rows.flat().map((b) => b.label)).toEqual(['✍️ Я — автор', '🛒 Я — продавец', 'ℹ️ Обо мне']);
 
     const menu = registry.findNavigation('Главное меню');
     expect(menu.isWelcome).toBe(true); // «Главное меню» тоже считается welcome-навигацией
@@ -27,10 +27,10 @@ describe('createSkillRegistry', () => {
     const labels = nav.rows.flat().map((b) => b.label);
 
     expect(labels).toEqual([
-      'Улучшить стиль', 'Создать пост',
-      'Пост по фото', 'Поздравление',
-      'Благодарность', 'Обучить стилю',
-      'Помощь', 'Главное меню'
+      '✒️ Улучшить стиль', '📝 Создать пост',
+      '📷 Пост по фото', '🎉 Поздравление',
+      '🙏 Благодарность', '🎓 Обучить стилю',
+      '❓ Помощь', '🏠 Главное меню'
     ]);
   });
 
@@ -95,7 +95,7 @@ describe('createSkillRegistry', () => {
   it('обо мне: кнопка в главном меню, /помощь — общий текст', () => {
     const registry = makeRegistry();
 
-    expect(registry.findNavigation('/start').rows.flat()).toContainEqual({ label: 'Обо мне', color: 'secondary' });
+    expect(registry.findNavigation('/start').rows.flat()).toContainEqual({ label: 'ℹ️ Обо мне', color: 'secondary' });
 
     const about = registry.findStatic('/помощь');
     expect(about.id).toBe('about');
@@ -120,10 +120,10 @@ describe('createSkillRegistry', () => {
 
     const labels = registry.presetRows('style_improve').flat().map((b) => b.label);
     expect(labels).toEqual([
-      'Деловой', 'Неформальный',
-      'Дружеский', 'Поэтичный', 'Патетический',
-      'Довлатов', 'Пушкин', 'Бродский',
-      'Назад'
+      '💼 Деловой', '☕ Неформальный',
+      '🤝 Дружеский', '🌙 Поэтичный', '🔥 Патетический',
+      '🚬 Довлатов', '📜 Пушкин', '🌊 Бродский',
+      '⬅️ Назад'
     ]);
 
     expect(registry.findPreset('style_improve', 'Довлатов').id).toBe('dovlatov');
@@ -147,7 +147,7 @@ describe('createSkillRegistry', () => {
   it('SKILL_PACKS фильтрует паки: только business', () => {
     const registry = createSkillRegistry([businessPack]);
 
-    expect(registry.findNavigation('/start').rows.flat().map((b) => b.label)).toEqual(['Я — продавец', 'Обо мне']);
+    expect(registry.findNavigation('/start').rows.flat().map((b) => b.label)).toEqual(['🛒 Я — продавец', 'ℹ️ Обо мне']);
     expect(registry.findSkillByText('Улучшить стиль')).toBeNull();
     expect(registry.findSkillByText('Рекламный текст').id).toBe('ad_text');
   });

@@ -70,7 +70,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     return buildInlineStyleKeyboard({
       presets: skill.presets,
       skillId: skill.id,
-      backLabel: 'Назад',
+      backLabel: '⬅️ Назад',
       packId: skill.pack
     });
   }
@@ -80,7 +80,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     return buildInlineVerseKeyboard({
       skillId: skill.id,
       presetId: preset.id,
-      backLabel: 'Назад',
+      backLabel: '⬅️ Назад',
       packId: skill.pack,
       generationId
     });
@@ -332,7 +332,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       const generation = saveGeneration(context.senderId, meta, reply, meta.feedbacks);
       const skill = registry.findSkillById(meta.skillId);
       const presets = skill?.presets || null;
-      const back = skill?.pack ? { label: 'Назад', packId: skill.pack } : null;
+      const back = skill?.pack ? { label: '⬅️ Назад', packId: skill.pack } : null;
 
       // VK: в инлайн-клавиатуре максимум 10 кнопок. Поэтому стили не подмешиваем
       // к реакциям, а шлём отдельным сообщением под результатом.
@@ -650,9 +650,14 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
   // --- Главная точка входа: обработка одного сообщения ---
 
+  // Кнопки шлют надпись с иконкой («💼 Деловой»), а сопоставление идёт
+  // по чистому тексту — срезаем ведущий эмодзи только для поиска по меню.
+  const LEADING_EMOJI_RE = /^[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]+\s*/u;
+
   async function handleMessage(context) {
     try {
       const text = context.text?.trim() || '';
+      const matchText = text.replace(LEADING_EMOJI_RE, '').trim();
       const hasAttachments = context.attachments.length > 0;
       if (!text && !hasAttachments) return;
 
@@ -698,7 +703,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       profileStore?.touch?.(context.senderId);
 
       // 1. Навигация: сбрасывает состояние. При /start персонаж представляется.
-      const navigation = registry.findNavigation(text);
+      const navigation = registry.findNavigation(matchText);
       if (navigation) {
         // Открытие раздела запоминаем: по нему работает кнопка «Помощь» в паке.
         if (navigation.pack) {
@@ -712,17 +717,17 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       }
 
       // 2. Скиллы-заглушки (без генерации).
-      const staticSkill = registry.findStatic(text);
+      const staticSkill = registry.findStatic(matchText);
       if (staticSkill) {
         await send(context, staticSkill.text, registry.packRows(staticSkill.pack) || registry.mainMenuRows());
         return;
       }
 
       // «Помощь» внутри раздела — детальная инструкция открытого пака.
-      if (text === registry.helpButton) {
+      if (matchText === registry.helpButton) {
         const userState = getUserState(context.senderId);
         const packId = userState?.value?.startsWith('pack:') ? userState.value.slice('pack:'.length) : null;
-        const packHelp = packId ? registry.findPackHelp(packId, text) : null;
+        const packHelp = packId ? registry.findPackHelp(packId, matchText) : null;
 
         if (packHelp) {
           await send(context, packHelp.text, registry.packRows(packHelp.pack));
@@ -736,7 +741,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       }
 
       // 3. Точное совпадение кнопки/команды: ставим состояние и просим ввод.
-      const triggeredSkill = registry.findSkillByText(text);
+      const triggeredSkill = registry.findSkillByText(matchText);
       if (triggeredSkill) {
         await handleSkillTriggered(triggeredSkill, context);
         return;
@@ -768,7 +773,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       // 4.5 Кнопка готового стиля: переделываем последний результат
       // или запоминаем стиль до ввода текста.
       if (text) {
-        const presetPick = registry.findPresetByText(text);
+        const presetPick = registry.findPresetByText(matchText);
 
         if (presetPick) {
           const generation = getActiveGeneration(context.senderId);
@@ -798,7 +803,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       }
 
       // 5. Команда с аргументом: "/команда текст" — генерация без состояния.
-      const argSkill = registry.findSkillByPrefix(text);
+      const argSkill = registry.findSkillByPrefix(matchText);
       if (argSkill) {
         const trigger = [argSkill.button, argSkill.command].find((item) => item?.startsWith('/') && text.startsWith(`${item} `));
         const arg = text.slice(trigger.length + 1).trim();

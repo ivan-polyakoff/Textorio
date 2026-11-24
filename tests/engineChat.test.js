@@ -128,7 +128,7 @@ describe('движок: пресеты стиля', () => {
     const triggerKeyboard = JSON.parse(trigger.send.mock.calls[1][1].keyboard.toString());
     expect(triggerKeyboard.inline).toBe(true);
     expect(labelsOf(trigger.send.mock.calls[1][1])).toEqual([
-      'Деловой', 'Неформальный', 'Дружеский', 'Поэтичный', 'Патетический', 'Довлатов', 'Пушкин', 'Бродский', 'Помощь', 'Назад'
+      '💼 Деловой', '☕ Неформальный', '🤝 Дружеский', '🌙 Поэтичный', '🔥 Патетический', '🚬 Довлатов', '📜 Пушкин', '🌊 Бродский', '❓ Помощь', '⬅️ Назад'
     ]);
 
     const presetMessage = message(senderId, 'Деловой');
@@ -161,7 +161,7 @@ describe('движок: пресеты стиля', () => {
       return payload.a === 'style';
     });
     expect(presetButtons.map((b) => b.action.label)).toEqual([
-      'Деловой', 'Неформальный', 'Дружеский', 'Поэтичный', 'Патетический', 'Довлатов', 'Пушкин', 'Бродский'
+      '💼 Деловой', '☕ Неформальный', '🤝 Дружеский', '🌙 Поэтичный', '🔥 Патетический', '🚬 Довлатов', '📜 Пушкин', '🌊 Бродский'
     ]);
 
     const generation = profileStore.load(senderId).lastGeneration;
@@ -376,7 +376,7 @@ describe('движок: пресеты стиля', () => {
       const payload = typeof b.action.payload === 'string' ? JSON.parse(b.action.payload) : b.action.payload;
       return payload.a === 'back';
     });
-    expect(backButton.action.label).toBe('Назад');
+    expect(backButton.action.label).toBe('⬅️ Назад');
 
     const backEvent = callback(senderId, { a: 'back', pk: 'bloggers' });
     await engine.handleMessageEvent(backEvent);
@@ -531,7 +531,7 @@ describe('движок: контекст свободного чата', () => {
     const serialized = JSON.parse(options.keyboard.toString());
     const labels = serialized.buttons.flat().map((b) => b.action.label);
 
-    expect(labels).toEqual(['Я — автор', 'Я — продавец', 'Обо мне']);
+    expect(labels).toEqual(['✍️ Я — автор', '🛒 Я — продавец', 'ℹ️ Обо мне']);
   });
 
   it('история персистентна между загрузками хранилища', async () => {

@@ -106,10 +106,15 @@ function createSkillRegistry(packs, options = {}) {
 
   // --- Раскладки клавиатур (абстрактные ряды: [[{label, color}]]) ---
 
+  // Иконка — чисто оформление надписи: сопоставление текста идёт по button.
+  function labeled(item) {
+    return item.icon ? `${item.icon} ${item.button}` : item.button;
+  }
+
   function mainMenuRows() {
     return [
-      ...chunkRows(packs.map((pack) => ({ label: pack.button, color: pack.color || 'primary' }))),
-      [{ label: aboutButton, color: 'secondary' }]
+      ...chunkRows(packs.map((pack) => ({ label: labeled(pack), color: pack.color || 'primary' }))),
+      [{ label: `ℹ️ ${aboutButton}`, color: 'secondary' }]
     ];
   }
 
@@ -119,13 +124,13 @@ function createSkillRegistry(packs, options = {}) {
 
     const packSkills = skills.filter((skill) => skill.pack === packId);
     const rows = chunkRows(packSkills.map((skill) => ({
-      label: skill.button,
+      label: labeled(skill),
       color: skill.color || 'primary'
     })));
 
     return [...rows, [
-      { label: sectionHelpButton, color: 'secondary' },
-      { label: mainMenuButton, color: 'secondary' }
+      { label: `❓ ${sectionHelpButton}`, color: 'secondary' },
+      { label: `🏠 ${mainMenuButton}`, color: 'secondary' }
     ]];
   }
 
@@ -195,11 +200,11 @@ function createSkillRegistry(packs, options = {}) {
     if (!skill?.presets?.length) return null;
 
     const rows = chunkRows(skill.presets.map((preset) => ({
-      label: preset.button,
+      label: labeled(preset),
       color: 'secondary'
     })));
 
-    return [...rows, [{ label: 'Назад', color: 'secondary' }]];
+    return [...rows, [{ label: '⬅️ Назад', color: 'secondary' }]];
   }
 
   function getPack(packId) {
