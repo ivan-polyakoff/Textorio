@@ -120,7 +120,7 @@ describe('createSkillRegistry', () => {
 
     const labels = registry.presetRows('style_improve').flat().map((b) => b.label);
     expect(labels).toEqual([
-      'Деловой', 'Неформальный деловой',
+      'Деловой', 'Неформальный',
       'Дружеский', 'Поэтичный',
       'Довлатов', 'Пушкин', 'Бродский',
       'Я — автор'
