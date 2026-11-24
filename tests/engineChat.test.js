@@ -138,7 +138,7 @@ describe('движок: пресеты стиля', () => {
 
     expect(provider.chat).toHaveBeenCalledTimes(1);
     const prompt = provider.chat.mock.calls[0][0];
-    expect(prompt).toContain('строгий деловой стиль');
+    expect(prompt).toContain('Ты — строгий деловой редактор');
     expect(prompt).toContain('Продали дачу. Звоните.');
 
     const keyboard = JSON.parse(textMessage.send.mock.calls[0][1].keyboard.toString());
@@ -158,7 +158,7 @@ describe('движок: пресеты стиля', () => {
     await engine.handleMessageEvent({ userId: senderId, peerId: senderId, eventPayload: { a: 'regen', g: generation.id }, answer: jest.fn(async () => {}), send: jest.fn(async () => {}) });
 
     expect(provider.chat).toHaveBeenCalledTimes(2);
-    expect(provider.chat.mock.calls[1][0]).toContain('строгий деловой стиль');
+    expect(provider.chat.mock.calls[1][0]).toContain('Ты — строгий деловой редактор');
   });
 
   it('кнопка стиля после результата переделывает исходный текст, а не предыдущий вариант', async () => {
@@ -173,7 +173,9 @@ describe('движок: пресеты стиля', () => {
 
     expect(provider.chat).toHaveBeenCalledTimes(2);
     const firstRestyle = provider.chat.mock.calls[1][0];
-    expect(firstRestyle).toContain('манера Александра Пушкина');
+    expect(firstRestyle).toContain('Ты — Александр Сергеевич Пушкин');
+    expect(firstRestyle).toContain('Лексика:');
+    expect(firstRestyle).toContain('Синтаксис:');
     expect(firstRestyle).toContain('Форма (обязательна): стихотворение');
     expect(firstRestyle).toContain('Продали дачу. Звоните.');
     expect(firstRestyle).not.toContain('Предыдущий вариант');
@@ -184,7 +186,7 @@ describe('движок: пресеты стиля', () => {
 
     expect(provider.chat).toHaveBeenCalledTimes(3);
     const secondRestyle = provider.chat.mock.calls[2][0];
-    expect(secondRestyle).toContain('манера Сергея Довлатова');
+    expect(secondRestyle).toContain('Ты — Сергей Довлатов');
     expect(secondRestyle).not.toContain('стихотворение');
     expect(secondRestyle).toContain('Продали дачу. Звоните.');
     expect(secondRestyle).not.toContain('Первый вариант');
@@ -213,7 +215,7 @@ describe('движок: пресеты стиля', () => {
 
     expect(provider.chat).toHaveBeenCalledTimes(2);
     const prompt = provider.chat.mock.calls[1][0];
-    expect(prompt).toContain('манера Сергея Довлатова');
+    expect(prompt).toContain('Ты — Сергей Довлатов');
     expect(prompt).toContain('Продали дачу. Звоните.');
     expect(prompt).not.toContain('Первый вариант');
     expect(profileStore.load(senderId).lastGeneration.input.preset).toBe('dovlatov');
@@ -246,7 +248,7 @@ describe('движок: пресеты стиля', () => {
 
     await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));
     const prompt = provider.chat.mock.calls[0][0];
-    expect(prompt).toContain('манера Иосифа Бродского');
+    expect(prompt).toContain('Ты — Иосиф Бродский');
     expect(prompt).toContain('Форма (обязательна): стихотворение');
   });
 
