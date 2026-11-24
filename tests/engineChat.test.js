@@ -126,19 +126,21 @@ describe('движок: пресеты стиля', () => {
     const triggerKeyboard = JSON.parse(trigger.send.mock.calls[0][1].keyboard.toString());
     expect(triggerKeyboard.inline).toBe(true);
     expect(labelsOf(trigger.send.mock.calls[0][1])).toEqual([
-      'Строгий', 'Неформальный', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский', 'Я — автор'
+      'Деловой', 'Неформальный', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский', 'Я — автор'
     ]);
 
-    const presetMessage = message(senderId, 'Строгий');
+    const presetMessage = message(senderId, 'Деловой');
     await engine.handleMessage(presetMessage);
-    expect(presetMessage.send.mock.calls[0][0]).toContain('Стиль «Строгий» выбрал');
+    expect(presetMessage.send.mock.calls[0][0]).toContain('Стиль «Деловой» выбрал');
 
     const textMessage = message(senderId, 'Продали дачу. Звоните.');
     await engine.handleMessage(textMessage);
 
     expect(provider.chat).toHaveBeenCalledTimes(1);
     const prompt = provider.chat.mock.calls[0][0];
-    expect(prompt).toContain('Ты — строгий деловой редактор');
+    expect(prompt).toContain('Ты — высококвалифицированный корпоративный секретарь');
+    expect(prompt).toContain('Пунктуация и оформление');
+    expect(prompt).toContain('Задачи (подстрой под текст');
     expect(prompt).toContain('Продали дачу. Звоните.');
 
     const keyboard = JSON.parse(textMessage.send.mock.calls[0][1].keyboard.toString());
@@ -148,7 +150,7 @@ describe('движок: пресеты стиля', () => {
       return payload.a === 'preset';
     });
     expect(presetButtons.map((b) => b.action.label)).toEqual([
-      'Строгий', 'Неформальный', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский'
+      'Деловой', 'Неформальный', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский'
     ]);
 
     const generation = profileStore.load(senderId).lastGeneration;
@@ -158,7 +160,7 @@ describe('движок: пресеты стиля', () => {
     await engine.handleMessageEvent({ userId: senderId, peerId: senderId, eventPayload: { a: 'regen', g: generation.id }, answer: jest.fn(async () => {}), send: jest.fn(async () => {}) });
 
     expect(provider.chat).toHaveBeenCalledTimes(2);
-    expect(provider.chat.mock.calls[1][0]).toContain('Ты — строгий деловой редактор');
+    expect(provider.chat.mock.calls[1][0]).toContain('Ты — высококвалифицированный корпоративный секретарь');
   });
 
   it('кнопка стиля после результата переделывает исходный текст, а не предыдущий вариант', async () => {
