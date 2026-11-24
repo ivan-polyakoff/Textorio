@@ -13,8 +13,8 @@
 //
 //   kind: 'text' (по умолчанию):
 //   acceptsPhoto: true,              // фото опционально: есть фото — генерация по vision
-//   presets: [{ id, button, role?, lexicon?, syntax?, rhythm?, intonation?,
-//               forbidden?, tasks?, form?, verseChoice?, instruction? }],
+//   presets: [{ id, button, role?, lexicon?, syntax?, composition?, rhythm?,
+//               intonation?, forbidden?, tasks?, form?, verseChoice?, instruction? }],
 //                                    // готовые стили (см. style_improve): поля — данные
 //                                    // для промпта; form: 'poem' — всегда стихи;
 //                                    // verseChoice: true — спросить «стихи или проза?»;

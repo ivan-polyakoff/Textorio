@@ -197,7 +197,8 @@ describe('движок: пресеты стиля', () => {
 
     expect(provider.chat).toHaveBeenCalledTimes(3);
     const secondRestyle = provider.chat.mock.calls[2][0];
-    expect(secondRestyle).toContain('Ты — Сергей Довлатов');
+    expect(secondRestyle).toContain('Ты — Сергей Донатович Довлатов');
+    expect(secondRestyle).toContain('Композиция и оптика');
     expect(secondRestyle).not.toContain('стихотворение');
     expect(secondRestyle).toContain('Продали дачу. Звоните.');
     expect(secondRestyle).not.toContain('Первый вариант');
@@ -226,7 +227,7 @@ describe('движок: пресеты стиля', () => {
 
     expect(provider.chat).toHaveBeenCalledTimes(2);
     const prompt = provider.chat.mock.calls[1][0];
-    expect(prompt).toContain('Ты — Сергей Довлатов');
+    expect(prompt).toContain('Ты — Сергей Донатович Довлатов');
     expect(prompt).toContain('Продали дачу. Звоните.');
     expect(prompt).not.toContain('Первый вариант');
     expect(profileStore.load(senderId).lastGeneration.input.preset).toBe('dovlatov');
