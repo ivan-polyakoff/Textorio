@@ -652,7 +652,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
   // Кнопки шлют надпись с иконкой («💼 Деловой»), а сопоставление идёт
   // по чистому тексту — срезаем ведущий эмодзи только для поиска по меню.
-  const LEADING_EMOJI_RE = /^[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]+\s*/u;
+  const LEADING_EMOJI_RE = /^[\u{1F000}-\u{1FAFF}\u{2100}-\u{2BFF}\u{FE0F}\u{200D}]+\s*/u;
 
   async function handleMessage(context) {
     try {
