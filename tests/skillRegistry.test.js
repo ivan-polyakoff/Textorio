@@ -13,7 +13,7 @@ describe('createSkillRegistry', () => {
     const start = registry.findNavigation('/start');
     expect(start.isWelcome).toBe(true);
     expect(start.text).toContain('Textorio');
-    expect(start.rows.flat().map((b) => b.label)).toEqual(['✍️ Я — автор', '🛒 Я — продавец', 'ℹ️ Обо мне']);
+    expect(start.rows.flat().map((b) => b.label)).toEqual(['✍️ Я — автор', '🛒 Я — продавец', 'ℹ️ О проекте «Тексторио»']);
 
     const menu = registry.findNavigation('Главное меню');
     expect(menu.isWelcome).toBe(true); // «Главное меню» тоже считается welcome-навигацией
@@ -95,12 +95,12 @@ describe('createSkillRegistry', () => {
   it('обо мне: кнопка в главном меню, /помощь — общий текст', () => {
     const registry = makeRegistry();
 
-    expect(registry.findNavigation('/start').rows.flat()).toContainEqual({ label: 'ℹ️ Обо мне', color: 'secondary' });
+    expect(registry.findNavigation('/start').rows.flat()).toContainEqual({ label: 'ℹ️ О проекте «Тексторио»', color: 'secondary' });
 
     const about = registry.findStatic('/помощь');
     expect(about.id).toBe('about');
     expect(about.text).toContain('ИИ-редактор');
-    expect(registry.findStatic('Обо мне').id).toBe('about');
+    expect(registry.findStatic('О проекте «Тексторио»').id).toBe('about');
     // «Помощь» — метка разделов, вне контекста пака не находится
     expect(registry.findStatic('Помощь')).toBeNull();
   });
@@ -140,14 +140,14 @@ describe('createSkillRegistry', () => {
 
     expect(registry.findPackHelp('bloggers', 'Помощь').text).toContain('«Я — автор»');
     expect(registry.findPackHelp('business', 'Помощь').text).toContain('«Я — продавец»');
-    expect(registry.findPackHelp('bloggers', 'Обо мне')).toBeNull();
+    expect(registry.findPackHelp('bloggers', 'О проекте «Тексторио»')).toBeNull();
     expect(registry.findPackHelp('unknown', 'Помощь')).toBeNull();
   });
 
   it('SKILL_PACKS фильтрует паки: только business', () => {
     const registry = createSkillRegistry([businessPack]);
 
-    expect(registry.findNavigation('/start').rows.flat().map((b) => b.label)).toEqual(['🛒 Я — продавец', 'ℹ️ Обо мне']);
+    expect(registry.findNavigation('/start').rows.flat().map((b) => b.label)).toEqual(['🛒 Я — продавец', 'ℹ️ О проекте «Тексторио»']);
     expect(registry.findSkillByText('Улучшить стиль')).toBeNull();
     expect(registry.findSkillByText('Рекламный текст').id).toBe('ad_text');
   });

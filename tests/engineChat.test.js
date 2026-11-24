@@ -531,7 +531,7 @@ describe('движок: контекст свободного чата', () => {
     const serialized = JSON.parse(options.keyboard.toString());
     const labels = serialized.buttons.flat().map((b) => b.action.label);
 
-    expect(labels).toEqual(['✍️ Я — автор', '🛒 Я — продавец', 'ℹ️ Обо мне']);
+    expect(labels).toEqual(['✍️ Я — автор', '🛒 Я — продавец', 'ℹ️ О проекте «Тексторио»']);
   });
 
   it('история персистентна между загрузками хранилища', async () => {

@@ -63,13 +63,13 @@ function chunkRows(labels) {
  */
 function createSkillRegistry(packs, options = {}) {
   const mainMenuButton = options.mainMenuButton || 'Главное меню';
-  const aboutButton = options.aboutButton || 'Обо мне';
+  const aboutButton = options.aboutButton || 'О проекте «Тексторио»';
   const sectionHelpButton = options.sectionHelpButton || 'Помощь';
   const welcomeText = options.welcomeText ||
     'Привет! Я Textorio — бот для создания и улучшения текстов.\n\nВыберите, для кого нужен текст:';
   const capabilities = options.capabilities ?? null;
 
-  // «Обо мне»: краткое описание сервиса в главном меню и по /помощь.
+  // «О проекте»: краткое описание сервиса в главном меню и по /помощь.
   // Детальные инструкции разделов — кнопка «Помощь» внутри каждого пака.
   const aboutSkill = {
     id: 'about',

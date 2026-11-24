@@ -734,7 +734,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
           return;
         }
 
-        // Без открытого раздела — общий рассказ «Обо мне».
+        // Без открытого раздела — общий рассказ о проекте.
         const about = registry.findStatic('/помощь');
         await send(context, about.text, registry.mainMenuRows());
         return;
