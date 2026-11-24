@@ -279,6 +279,22 @@ describe('движок: пресеты стиля', () => {
     expect(provider.chat.mock.calls[0][0]).toContain('поэтичный образный стиль');
   });
 
+  it('эхо промпта от модели не показывается, просим текст заново', async () => {
+    const { engine, message, callback } = makeHarness({
+      chatReply: 'Ты — Сергей Донатович Довлатов.\n\nЧитатель спросил про безопасность.'
+    });
+    const senderId = 811;
+
+    await engine.handleMessage(message(senderId, 'Улучшить стиль'));
+    await engine.handleMessageEvent(callback(senderId, { a: 'style', s: 'style_improve', p: 'dovlatov' }));
+    const textMessage = message(senderId, 'Продали дачу. Звоните.');
+    await engine.handleMessage(textMessage);
+
+    const reply = textMessage.send.mock.calls[0][0];
+    expect(reply).toContain('Пришлите, пожалуйста, свой текст ещё раз');
+    expect(reply).not.toContain('Сергей Донатович');
+  });
+
   it('кнопка стиля под результатом сразу переделывает текст, не прося новый', async () => {
     const { engine, provider, message, callback } = makeHarness({ chatReply: 'Первый вариант' });
     const senderId = 810;

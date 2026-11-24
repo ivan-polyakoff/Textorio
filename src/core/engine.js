@@ -213,6 +213,20 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     });
   }
 
+  // Модель иногда принимает инструкции за исходник и пересказывает промпт
+  // (роль стиля, правила безопасности). Такой ответ пользователю не отдаём.
+  function looksLikePromptEcho(reply, preset) {
+    if (!reply) return false;
+
+    const text = reply.trim();
+    const roleLead = (preset?.role || '').split(/[.!?\n]/)[0].trim();
+
+    return (
+      (roleLead.length > 8 && text.startsWith(roleLead)) ||
+      text.includes('Правила безопасности (обязательны)')
+    );
+  }
+
   // Промпт смены стиля: строго исходный текст пользователя.
   // Предыдущие варианты намеренно не передаём — иначе модель переписывает
   // уже изменённый текст и стиль «дрейфует» от оригинала.
@@ -294,6 +308,16 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       const sourceText = meta?.input?.text || meta?.input?.caption || context.text || '';
       logger.warn('Модель отказалась отвечать — подменяю на безопасный шаблон.');
       reply = refusalFor(null, sourceText);
+      refused = true;
+    }
+
+    const usedPreset = meta?.input?.preset
+      ? registry.findSkillById(meta.skillId)?.presets?.find((item) => item.id === meta.input.preset)
+      : null;
+
+    if (usedPreset && looksLikePromptEcho(reply, usedPreset)) {
+      logger.warn('Модель пересказала промпт вместо текста — прошу прислать текст заново.');
+      reply = 'Похоже, я перепутал инструкции и сам текст. Пришлите, пожалуйста, свой текст ещё раз — перепишу именно его.';
       refused = true;
     }
 
