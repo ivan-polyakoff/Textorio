@@ -887,6 +887,21 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
         return;
       }
 
+      // Справка по готовым стилям из меню стилей.
+      if (payload.a === 'styleHelp') {
+        const skill = registry.findSkillById(payload.s);
+        const text = skill ? registry.presetHelpText(skill.id) : null;
+
+        if (!text) {
+          await safeAnswer(context, 'Справка недоступна');
+          return;
+        }
+
+        await safeAnswer(context, 'Справка по стилям');
+        await context.send(text, { keyboard: styleKeyboard(skill) });
+        return;
+      }
+
       // Выбор формы (стихи/проза) для стилей с verseChoice.
       if (payload.a === 'verse') {
         const skill = registry.findSkillById(payload.s);

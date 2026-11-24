@@ -14,7 +14,8 @@
 //   kind: 'text' (по умолчанию):
 //   acceptsPhoto: true,              // фото опционально: есть фото — генерация по vision
 //   presets: [{ id, button, role?, lexicon?, syntax?, composition?, rhythm?,
-//               intonation?, forbidden?, tasks?, form?, verseChoice?, instruction? }],
+//               intonation?, forbidden?, tasks?, form?, verseChoice?, instruction?,
+//               title?, help? }],
 //                                    // готовые стили (см. style_improve): поля — данные
 //                                    // для промпта; form: 'poem' — всегда стихи;
 //                                    // verseChoice: true — спросить «стихи или проза?»;
@@ -207,6 +208,22 @@ function createSkillRegistry(packs, options = {}) {
     return packById.get(packId) || null;
   }
 
+  // Справка по готовым стилям: заголовок + краткое описание для каждого.
+  function presetHelpText(skillId) {
+    const skill = findSkillById(skillId);
+    if (!skill?.presets?.length) return null;
+
+    const parts = ['Готовые стили:'];
+
+    for (const preset of skill.presets) {
+      const block = [preset.title || preset.button, preset.help].filter(Boolean).join('\n');
+      if (block) parts.push(block);
+    }
+
+    parts.push('Выберите стиль кнопкой — до ввода текста или после результата.');
+    return parts.join('\n\n');
+  }
+
   function stateOf(skill) {
     return `waiting:${skill.id}`;
   }
@@ -262,6 +279,7 @@ function createSkillRegistry(packs, options = {}) {
     findPreset,
     findPresetByText,
     presetRows,
+    presetHelpText,
     getPack,
     findSkillByState,
     stateOf,

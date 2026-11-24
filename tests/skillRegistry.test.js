@@ -127,6 +127,10 @@ describe('createSkillRegistry', () => {
     ]);
 
     expect(registry.findPreset('style_improve', 'Довлатов').id).toBe('dovlatov');
+
+    const help = registry.presetHelpText('style_improve');
+    expect(help).toContain('Неформальный деловой стиль (Human-to-Human)');
+    expect(help).toContain('Стиль Бродского');
     expect(registry.findPreset('style_improve', 'Создать пост')).toBeNull();
     expect(registry.presetRows('post_topic')).toBeNull();
   });

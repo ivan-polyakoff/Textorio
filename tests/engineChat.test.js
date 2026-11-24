@@ -126,7 +126,7 @@ describe('движок: пресеты стиля', () => {
     const triggerKeyboard = JSON.parse(trigger.send.mock.calls[0][1].keyboard.toString());
     expect(triggerKeyboard.inline).toBe(true);
     expect(labelsOf(trigger.send.mock.calls[0][1])).toEqual([
-      'Деловой', 'Неформальный деловой', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский', 'Я — автор'
+      'Деловой', 'Неформальный деловой', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский', 'Помощь', 'Я — автор'
     ]);
 
     const presetMessage = message(senderId, 'Деловой');
@@ -233,6 +233,21 @@ describe('движок: пресеты стиля', () => {
     expect(prompt).toContain('Продали дачу. Звоните.');
     expect(prompt).not.toContain('Первый вариант');
     expect(profileStore.load(senderId).lastGeneration.input.preset).toBe('dovlatov');
+  });
+
+  it('кнопка «Помощь» в меню стилей показывает описания', async () => {
+    const { engine, message, callback } = makeHarness();
+    const senderId = 808;
+
+    await engine.handleMessage(message(senderId, 'Улучшить стиль'));
+
+    const helpEvent = callback(senderId, { a: 'styleHelp', s: 'style_improve' });
+    await engine.handleMessageEvent(helpEvent);
+
+    const text = helpEvent.send.mock.calls[0][0];
+    expect(text).toContain('Готовые стили');
+    expect(text).toContain('Неформальный деловой стиль (Human-to-Human)');
+    expect(text).toContain('Стиль Пушкина');
   });
 
   it('инлайн-кнопка стиля до текста запоминает стиль, «Я — автор» возвращает в раздел', async () => {

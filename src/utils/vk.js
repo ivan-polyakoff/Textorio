@@ -98,6 +98,11 @@ function buildInlineStyleKeyboard({ presets, skillId, backLabel, packId }) {
 
   builder.row();
   builder.callbackButton({
+    label: 'Помощь',
+    payload: { a: 'styleHelp', s: skillId },
+    color: Keyboard.SECONDARY_COLOR
+  });
+  builder.callbackButton({
     label: backLabel,
     payload: { a: 'back', pk: packId },
     color: Keyboard.SECONDARY_COLOR
