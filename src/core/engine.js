@@ -3,7 +3,7 @@
 // через контракт (src/providers/provider.js). Ни VK, ни GigaChat здесь не упоминаются.
 // Специфика VK (клавиатуры vk-io, скачивание фото) остаётся в transport.
 
-const { sendWithOptionalKeyboard, getPhotoUrls, withTyping, buildKeyboard, buildInlineFeedbackKeyboard, buildInlineStyleKeyboard } = require('../utils/vk');
+const { sendWithOptionalKeyboard, getPhotoUrls, withTyping, buildKeyboard, buildInlineFeedbackKeyboard, buildInlineStyleKeyboard, buildInlineVerseKeyboard } = require('../utils/vk');
 const { createRateLimiter } = require('../utils/rateLimiter');
 const { getPersona } = require('../config/persona');
 const { SAFETY_RULES } = require('../config/safety');
@@ -75,6 +75,28 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       backLabel: pack?.button || registry.mainMenuButton,
       packId: skill.pack
     });
+  }
+
+  // Стиль с необязательной формой (Пушкин): спрашиваем «стихи или проза?».
+  function verseKeyboard(skill, preset, generationId = null) {
+    const pack = registry.getPack(skill.pack);
+
+    return buildInlineVerseKeyboard({
+      skillId: skill.id,
+      presetId: preset.id,
+      backLabel: pack?.button || registry.mainMenuButton,
+      packId: skill.pack,
+      generationId
+    });
+  }
+
+  async function askVerse(context, skill, preset, generation = null) {
+    await send(
+      context,
+      `Стиль «${preset.button}» выбран. Стихами или прозой?`,
+      null,
+      verseKeyboard(skill, preset, generation?.id || null)
+    );
   }
 
   async function send(context, text, rows = null, keyboardOverride = undefined) {
@@ -155,7 +177,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       parts.push(`Предыдущий вариант поста:\n${generation.result}`);
     } else {
       const preset = (skill.presets || []).find((item) => item.id === generation.input.preset) || null;
-      parts.push(skill.prompt(generation.input.text, preset));
+      parts.push(skill.prompt(generation.input.text, preset, { verse: generation.input.verse }));
       parts.push(`Предыдущий вариант:\n${generation.result}`);
     }
 
@@ -198,9 +220,9 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
   // Промпт смены стиля: строго исходный текст пользователя.
   // Предыдущие варианты намеренно не передаём — иначе модель переписывает
   // уже изменённый текст и стиль «дрейфует» от оригинала.
-  function buildPresetPrompt(skill, generation, preset, senderId) {
+  function buildPresetPrompt(skill, generation, preset, senderId, verse) {
     const parts = [
-      skill.prompt(generation.input.text, preset),
+      skill.prompt(generation.input.text, preset, { verse }),
       'Перепиши именно исходный текст в заданном стиле оформления. Сохрани смысл и факты, не опирайся на предыдущие варианты.'
     ];
 
@@ -208,7 +230,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
   }
 
   // Переделка последнего результата в выбранном готовом стиле.
-  async function restyleFromPreset(context, generation, preset) {
+  async function restyleFromPreset(context, generation, preset, { verse } = {}) {
     const skill = registry.findSkillById(generation.skillId);
 
     if (!skill) {
@@ -216,12 +238,23 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       return;
     }
 
+    // Форма наследуется только стихами-совместимыми пресетами,
+    // иначе «стихи» от Пушкина протекут в прозаического Довлатова.
+    const resolvedVerse = typeof verse === 'boolean'
+      ? verse
+      : (preset.form === 'poem' ? true : undefined);
     const input = { ...generation.input, preset: preset.id };
+
+    if (typeof resolvedVerse === 'boolean') {
+      input.verse = resolvedVerse;
+    } else {
+      delete input.verse;
+    }
 
     await runGeneration(
       context,
       null,
-      () => provider.chat(buildPresetPrompt(skill, generation, preset, context.senderId)),
+      () => provider.chat(buildPresetPrompt(skill, generation, preset, context.senderId, input.verse)),
       {
         skillId: skill.id,
         kind: skill.kind,
@@ -284,7 +317,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
   async function generateByText(skill, input, senderId) {
     const preset = (skill.presets || []).find((item) => item.id === input.preset) || null;
-    return provider.chat(applyStyleHint(skill.prompt(input.text, preset), senderId));
+    return provider.chat(applyStyleHint(skill.prompt(input.text, preset, { verse: input.verse }), senderId));
   }
 
   async function generateByPhoto(skill, photoUrls, caption, senderId) {
@@ -361,6 +394,12 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
       if (preset) {
         setUserState(context.senderId, registry.stateOf(skill), { stylePreset: preset.id });
+
+        if (preset.verseChoice) {
+          await askVerse(context, skill, preset);
+          return;
+        }
+
         await send(context, `Стиль «${preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`, null, styleKeyboard(skill));
         return;
       }
@@ -415,6 +454,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     const stylePreset = userState.stylePreset || null;
     const input = { text: context.text };
     if (stylePreset) input.preset = stylePreset;
+    if (typeof userState.verse === 'boolean') input.verse = userState.verse;
 
     await runGeneration(
       context,
@@ -692,11 +732,23 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
           if (generation && generation.skillId === presetPick.skill.id && generation.kind !== 'photo') {
             deleteUserState(context.senderId);
+
+            if (presetPick.preset.verseChoice) {
+              await askVerse(context, presetPick.skill, presetPick.preset, generation);
+              return;
+            }
+
             await restyleFromPreset(context, generation, presetPick.preset);
             return;
           }
 
           setUserState(context.senderId, registry.stateOf(presetPick.skill), { stylePreset: presetPick.preset.id });
+
+          if (presetPick.preset.verseChoice) {
+            await askVerse(context, presetPick.skill, presetPick.preset);
+            return;
+          }
+
           await send(context, `Стиль «${presetPick.preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`, null, styleKeyboard(presetPick.skill));
           return;
         }
@@ -823,7 +875,50 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
         setUserState(senderId, registry.stateOf(skill), { stylePreset: preset.id });
         await safeAnswer(context, `Стиль «${preset.button}» выбран`);
+
+        if (preset.verseChoice) {
+          await askVerse(context, skill, preset);
+          return;
+        }
+
         await context.send(`Стиль «${preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`, {
+          keyboard: styleKeyboard(skill)
+        });
+        return;
+      }
+
+      // Выбор формы (стихи/проза) для стилей с verseChoice.
+      if (payload.a === 'verse') {
+        const skill = registry.findSkillById(payload.s);
+        const preset = (skill?.presets || []).find((item) => item.id === payload.p);
+        const verse = payload.v === 'poem';
+
+        if (!skill || !preset) {
+          await safeAnswer(context, 'Не понял стиль');
+          return;
+        }
+
+        if (payload.g) {
+          const generation = getActiveGeneration(senderId);
+
+          if (!generation || String(generation.id) !== String(payload.g)) {
+            await safeAnswer(context, 'Контекст устарел — сгенерируйте заново');
+            return;
+          }
+
+          await safeAnswer(context, verse ? 'Пишу стихами' : 'Пишу прозой');
+          await restyleFromPreset(
+            { senderId, peerId: context.peerId, send: (text, params) => context.send(text, params) },
+            generation,
+            preset,
+            { verse }
+          );
+          return;
+        }
+
+        setUserState(senderId, registry.stateOf(skill), { stylePreset: preset.id, verse });
+        await safeAnswer(context, verse ? 'Стихи' : 'Проза');
+        await context.send(`Стиль «${preset.button}» выбран, форма — ${verse ? 'стихи' : 'проза'}. Теперь пришлите текст, который нужно улучшить.`, {
           keyboard: styleKeyboard(skill)
         });
         return;
@@ -872,6 +967,11 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
         if (!preset) {
           await safeAnswer(context, 'Не понял стиль');
+          return;
+        }
+
+        if (preset.verseChoice) {
+          await askVerse(context, skill, preset, generation);
           return;
         }
 

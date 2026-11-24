@@ -162,14 +162,21 @@ describe('движок: пресеты стиля', () => {
   });
 
   it('кнопка стиля после результата переделывает исходный текст, а не предыдущий вариант', async () => {
-    const { engine, provider, profileStore, message } = makeHarness({ chatReply: 'Первый вариант' });
+    const { engine, provider, profileStore, message, callback } = makeHarness({ chatReply: 'Первый вариант' });
     const senderId = 802;
 
     await engine.handleMessage(message(senderId, 'Улучшить стиль'));
     await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));
 
     await sleep(5);
-    await engine.handleMessage(message(senderId, 'Пушкин'));
+    const pushkinMessage = message(senderId, 'Пушкин');
+    await engine.handleMessage(pushkinMessage);
+    expect(pushkinMessage.send.mock.calls[0][0]).toContain('Стихами или прозой');
+
+    const firstGeneration = profileStore.load(senderId).lastGeneration;
+    await engine.handleMessageEvent(callback(senderId, {
+      a: 'verse', v: 'poem', s: 'style_improve', p: 'pushkin', g: firstGeneration.id
+    }));
 
     expect(provider.chat).toHaveBeenCalledTimes(2);
     const firstRestyle = provider.chat.mock.calls[1][0];
@@ -180,6 +187,8 @@ describe('движок: пресеты стиля', () => {
     expect(firstRestyle).toContain('Продали дачу. Звоните.');
     expect(firstRestyle).not.toContain('Предыдущий вариант');
     expect(firstRestyle).not.toContain('Первый вариант');
+
+    expect(profileStore.load(senderId).lastGeneration.input.verse).toBe(true);
 
     await sleep(5);
     await engine.handleMessage(message(senderId, 'Довлатов'));
@@ -236,6 +245,24 @@ describe('движок: пресеты стиля', () => {
 
     await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));
     expect(provider.chat.mock.calls[0][0]).toContain('поэтичный образный стиль');
+  });
+
+  it('Пушкин спрашивает форму: проза даёт прозаический промпт', async () => {
+    const { engine, provider, message, callback } = makeHarness();
+    const senderId = 807;
+
+    await engine.handleMessage(message(senderId, 'Улучшить стиль'));
+    const pushkin = message(senderId, 'Пушкин');
+    await engine.handleMessage(pushkin);
+    expect(pushkin.send.mock.calls[0][0]).toContain('Стихами или прозой');
+
+    await engine.handleMessageEvent(callback(senderId, { a: 'verse', v: 'prose', s: 'style_improve', p: 'pushkin' }));
+    await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));
+
+    const prompt = provider.chat.mock.calls[0][0];
+    expect(prompt).toContain('Ты — Александр Сергеевич Пушкин');
+    expect(prompt).toContain('Форма (обязательна): проза');
+    expect(prompt).not.toContain('Форма (обязательна): стихотворение');
   });
 
   it('кнопка стиля без результата запускает «Улучшить стиль» с выбранным стилем', async () => {

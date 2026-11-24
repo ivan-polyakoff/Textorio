@@ -106,6 +106,35 @@ function buildInlineStyleKeyboard({ presets, skillId, backLabel, packId }) {
   return builder;
 }
 
+// Выбор формы для стилей, где она не задана жёстко (например, Пушкин):
+// payload: { a: 'verse', v: 'poem'|'prose', s: skillId, p: presetId, g?: genId }.
+function buildInlineVerseKeyboard({ skillId, presetId, backLabel, packId, generationId = null }) {
+  const Keyboard = getKeyboardModule();
+
+  const builder = Keyboard.builder();
+  const base = { a: 'verse', s: skillId, p: presetId };
+  if (generationId) base.g = generationId;
+
+  builder.callbackButton({
+    label: 'Стихами',
+    payload: { ...base, v: 'poem' },
+    color: Keyboard.PRIMARY_COLOR
+  });
+  builder.callbackButton({
+    label: 'Прозой',
+    payload: { ...base, v: 'prose' },
+    color: Keyboard.SECONDARY_COLOR
+  });
+  builder.row();
+  builder.callbackButton({
+    label: backLabel,
+    payload: { a: 'back', pk: packId },
+    color: Keyboard.SECONDARY_COLOR
+  });
+  builder.inline(true);
+  return builder;
+}
+
 function splitMessage(text, maxLength = VK_MESSAGE_MAX_LENGTH) {
   const source = String(text ?? '');
 
@@ -219,5 +248,6 @@ module.exports = {
   withTyping,
   buildKeyboard,
   buildInlineFeedbackKeyboard,
-  buildInlineStyleKeyboard
+  buildInlineStyleKeyboard,
+  buildInlineVerseKeyboard
 };
