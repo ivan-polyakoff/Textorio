@@ -145,11 +145,20 @@ describe('движок: пресеты стиля', () => {
     expect(prompt).toContain('Задачи (подстрой под текст');
     expect(prompt).toContain('Продали дачу. Звоните.');
 
-    const keyboard = JSON.parse(textMessage.send.mock.calls[0][1].keyboard.toString());
-    expect(keyboard.inline).toBe(true);
-    const presetButtons = keyboard.buttons.flat().filter((b) => {
+    const resultKeyboard = JSON.parse(textMessage.send.mock.calls[0][1].keyboard.toString());
+    expect(resultKeyboard.inline).toBe(true);
+    expect(resultKeyboard.buttons.flat().some((b) => {
       const payload = typeof b.action.payload === 'string' ? JSON.parse(b.action.payload) : b.action.payload;
       return payload.a === 'preset';
+    })).toBe(false);
+
+    expect(textMessage.send.mock.calls[1][0]).toContain('другом стиле');
+    const keyboard = JSON.parse(textMessage.send.mock.calls[1][1].keyboard.toString());
+    expect(keyboard.inline).toBe(true);
+    expect(keyboard.buttons.flat().length).toBeLessThanOrEqual(10);
+    const presetButtons = keyboard.buttons.flat().filter((b) => {
+      const payload = typeof b.action.payload === 'string' ? JSON.parse(b.action.payload) : b.action.payload;
+      return payload.a === 'style';
     });
     expect(presetButtons.map((b) => b.action.label)).toEqual([
       'Деловой', 'Неформальный', 'Дружеский', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский'

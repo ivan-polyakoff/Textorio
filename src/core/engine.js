@@ -302,7 +302,18 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       const skill = registry.findSkillById(meta.skillId);
       const presets = skill?.presets || null;
       const back = skill?.pack ? { label: 'Назад', packId: skill.pack } : null;
-      await send(context, reply, null, generation ? buildInlineFeedbackKeyboard(generation.id, presets, back) : undefined);
+
+      // VK: в инлайн-клавиатуре максимум 10 кнопок. Поэтому стили не подмешиваем
+      // к реакциям, а шлём отдельным сообщением под результатом.
+      const feedback = generation
+        ? buildInlineFeedbackKeyboard(generation.id, null, presets ? null : back)
+        : undefined;
+      await send(context, reply, null, feedback);
+
+      if (presets) {
+        await send(context, 'Можно переделать в другом стиле:', null, styleKeyboard(skill));
+      }
+
       return { reply, refused };
     }
 
