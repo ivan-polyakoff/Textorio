@@ -79,6 +79,11 @@ function buildInlineFeedbackKeyboard(genId, presetButtons = null) {
   return builder;
 }
 
+// Пустая клавиатура: отправка такого объекта в VK убирает reply-меню чата.
+function buildEmptyKeyboard() {
+  return getKeyboardModule().builder();
+}
+
 // Инлайн-клавиатура выбора стиля под запросом текста. В отличие от reply-клавиатуры,
 // остаётся видимой, пока пользователь набирает сообщение.
 // payload: { a: 'style', s: skillId, p: presetId } и { a: 'back', pk: packId }.
@@ -254,5 +259,6 @@ module.exports = {
   buildKeyboard,
   buildInlineFeedbackKeyboard,
   buildInlineStyleKeyboard,
-  buildInlineVerseKeyboard
+  buildInlineVerseKeyboard,
+  buildEmptyKeyboard
 };

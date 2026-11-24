@@ -3,7 +3,7 @@
 // через контракт (src/providers/provider.js). Ни VK, ни GigaChat здесь не упоминаются.
 // Специфика VK (клавиатуры vk-io, скачивание фото) остаётся в transport.
 
-const { sendWithOptionalKeyboard, getPhotoUrls, withTyping, buildKeyboard, buildInlineFeedbackKeyboard, buildInlineStyleKeyboard, buildInlineVerseKeyboard } = require('../utils/vk');
+const { sendWithOptionalKeyboard, getPhotoUrls, withTyping, buildKeyboard, buildInlineFeedbackKeyboard, buildInlineStyleKeyboard, buildInlineVerseKeyboard, buildEmptyKeyboard } = require('../utils/vk');
 const { createRateLimiter } = require('../utils/rateLimiter');
 const { getPersona } = require('../config/persona');
 const { SAFETY_RULES } = require('../config/safety');
@@ -380,7 +380,9 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     setUserState(context.senderId, registry.stateOf(skill));
 
     if (skill.presets) {
-      await send(context, skill.ask, null, styleKeyboard(skill));
+      // Сначала убираем reply-меню раздела: иначе оно висит под инлайн-меню стилей.
+      await send(context, skill.ask, null, buildEmptyKeyboard());
+      await send(context, 'Выберите стиль — можно до ввода текста или переделать результат после.', null, styleKeyboard(skill));
       return;
     }
 

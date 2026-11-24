@@ -123,9 +123,11 @@ describe('движок: пресеты стиля', () => {
 
     const trigger = message(senderId, 'Улучшить стиль');
     await engine.handleMessage(trigger);
-    const triggerKeyboard = JSON.parse(trigger.send.mock.calls[0][1].keyboard.toString());
+    const cleared = JSON.parse(trigger.send.mock.calls[0][1].keyboard.toString());
+    expect(cleared.buttons || []).toEqual([]);
+    const triggerKeyboard = JSON.parse(trigger.send.mock.calls[1][1].keyboard.toString());
     expect(triggerKeyboard.inline).toBe(true);
-    expect(labelsOf(trigger.send.mock.calls[0][1])).toEqual([
+    expect(labelsOf(trigger.send.mock.calls[1][1])).toEqual([
       'Деловой', 'Неформальный деловой', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский', 'Помощь', 'Я — автор'
     ]);
 
