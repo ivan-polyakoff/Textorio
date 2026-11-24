@@ -279,6 +279,8 @@ describe('движок: пресеты стиля', () => {
     await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));
     const prompt = provider.chat.mock.calls[0][0];
     expect(prompt).toContain('Ты — Иосиф Бродский');
+    expect(prompt).toContain('Композиция и оптика');
+    expect(prompt).toContain('Задачи (подстрой под текст');
     expect(prompt).toContain('Форма (обязательна): стихотворение');
   });
 
