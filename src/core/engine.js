@@ -215,14 +215,21 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
   // Модель иногда принимает инструкции за исходник и пересказывает промпт
   // (роль стиля, правила безопасности). Такой ответ пользователю не отдаём.
+  function echoMarkers(preset) {
+    const roleLead = (preset?.role || '').split(/[.!?\n]/)[0].trim();
+    const roleName = roleLead.replace(/^Ты\s*—\s*/, '').trim();
+
+    return [roleLead, roleName].filter((item) => item.length > 8);
+  }
+
   function looksLikePromptEcho(reply, preset) {
     if (!reply) return false;
 
     const text = reply.trim();
-    const roleLead = (preset?.role || '').split(/[.!?\n]/)[0].trim();
+    const markers = echoMarkers(preset);
 
     return (
-      (roleLead.length > 8 && text.startsWith(roleLead)) ||
+      markers.some((marker) => text.includes(marker)) ||
       text.includes('Правила безопасности (обязательны)')
     );
   }
