@@ -274,8 +274,9 @@ describe('движок: пресеты стиля', () => {
 
     const presetMessage = message(senderId, 'Бродский');
     await engine.handleMessage(presetMessage);
-    expect(presetMessage.send.mock.calls[0][0]).toContain('Стиль «Бродский» выбрал');
+    expect(presetMessage.send.mock.calls[0][0]).toContain('Стихами или прозой');
 
+    await engine.handleMessageEvent({ userId: senderId, peerId: senderId, eventPayload: { a: 'verse', v: 'poem', s: 'style_improve', p: 'brodsky' }, answer: jest.fn(async () => {}), send: jest.fn(async () => {}) });
     await engine.handleMessage(message(senderId, 'Продали дачу. Звоните.'));
     const prompt = provider.chat.mock.calls[0][0];
     expect(prompt).toContain('Ты — Иосиф Бродский');
