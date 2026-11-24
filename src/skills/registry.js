@@ -194,14 +194,12 @@ function createSkillRegistry(packs, options = {}) {
     const skill = findSkillById(skillId);
     if (!skill?.presets?.length) return null;
 
-    const pack = packById.get(skill.pack);
-    const backLabel = pack?.button || mainMenuButton;
     const rows = chunkRows(skill.presets.map((preset) => ({
       label: preset.button,
       color: 'secondary'
     })));
 
-    return [...rows, [{ label: backLabel, color: 'secondary' }]];
+    return [...rows, [{ label: 'Назад', color: 'secondary' }]];
   }
 
   function getPack(packId) {

@@ -128,7 +128,7 @@ describe('движок: пресеты стиля', () => {
     const triggerKeyboard = JSON.parse(trigger.send.mock.calls[1][1].keyboard.toString());
     expect(triggerKeyboard.inline).toBe(true);
     expect(labelsOf(trigger.send.mock.calls[1][1])).toEqual([
-      'Деловой', 'Неформальный', 'Дружеский', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский', 'Помощь', 'Я — автор'
+      'Деловой', 'Неформальный', 'Дружеский', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский', 'Помощь', 'Назад'
     ]);
 
     const presetMessage = message(senderId, 'Деловой');
@@ -253,7 +253,7 @@ describe('движок: пресеты стиля', () => {
     expect(text).toContain('Дружеский стиль (Personal / Casual)');
   });
 
-  it('инлайн-кнопка стиля до текста запоминает стиль, «Я — автор» возвращает в раздел', async () => {
+  it('инлайн-кнопка стиля до текста запоминает стиль, «Назад» возвращает в раздел', async () => {
     const { engine, provider, message, callback } = makeHarness();
     const senderId = 806;
 
@@ -303,6 +303,26 @@ describe('движок: пресеты стиля', () => {
     expect(prompt).toContain('Композиция и оптика');
     expect(prompt).toContain('Задачи (подстрой под текст');
     expect(prompt).toContain('Форма (обязательна): стихотворение');
+  });
+
+  it('под результатом есть «Назад» — открывает меню раздела', async () => {
+    const { engine, message, callback } = makeHarness();
+    const senderId = 809;
+
+    await engine.handleMessage(message(senderId, 'Создать пост'));
+    const textMessage = message(senderId, 'тема про ёжика');
+    await engine.handleMessage(textMessage);
+
+    const keyboard = JSON.parse(textMessage.send.mock.calls[0][1].keyboard.toString());
+    const backButton = keyboard.buttons.flat().find((b) => {
+      const payload = typeof b.action.payload === 'string' ? JSON.parse(b.action.payload) : b.action.payload;
+      return payload.a === 'back';
+    });
+    expect(backButton.action.label).toBe('Назад');
+
+    const backEvent = callback(senderId, { a: 'back', pk: 'bloggers' });
+    await engine.handleMessageEvent(backEvent);
+    expect(backEvent.send.mock.calls[0][0]).toContain('Раздел для авторов');
   });
 
   it('без пресета промпт не содержит блок стиля', async () => {

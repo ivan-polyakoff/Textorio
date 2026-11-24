@@ -67,24 +67,20 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
   // Инлайн-клавиатура стилей: остаётся видимой, пока пользователь печатает.
   function styleKeyboard(skill) {
-    const pack = registry.getPack(skill.pack);
-
     return buildInlineStyleKeyboard({
       presets: skill.presets,
       skillId: skill.id,
-      backLabel: pack?.button || registry.mainMenuButton,
+      backLabel: 'Назад',
       packId: skill.pack
     });
   }
 
   // Стиль с необязательной формой (Пушкин): спрашиваем «стихи или проза?».
   function verseKeyboard(skill, preset, generationId = null) {
-    const pack = registry.getPack(skill.pack);
-
     return buildInlineVerseKeyboard({
       skillId: skill.id,
       presetId: preset.id,
-      backLabel: pack?.button || registry.mainMenuButton,
+      backLabel: 'Назад',
       packId: skill.pack,
       generationId
     });
@@ -303,8 +299,10 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
     if (meta) {
       const generation = saveGeneration(context.senderId, meta, reply, meta.feedbacks);
-      const presets = registry.findSkillById(meta.skillId)?.presets || null;
-      await send(context, reply, null, generation ? buildInlineFeedbackKeyboard(generation.id, presets) : undefined);
+      const skill = registry.findSkillById(meta.skillId);
+      const presets = skill?.presets || null;
+      const back = skill?.pack ? { label: 'Назад', packId: skill.pack } : null;
+      await send(context, reply, null, generation ? buildInlineFeedbackKeyboard(generation.id, presets, back) : undefined);
       return { reply, refused };
     }
 

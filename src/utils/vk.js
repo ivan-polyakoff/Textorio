@@ -43,7 +43,7 @@ function buildKeyboard(rows) {
 // в отличие от обычной клавиатуры меню.
 // payload: { a: 'good'|'bad'|'regen', g: genId } и { a: 'preset', p: presetId, g: genId }
 // — обрабатывается в engine.handleMessageEvent.
-function buildInlineFeedbackKeyboard(genId, presetButtons = null) {
+function buildInlineFeedbackKeyboard(genId, presetButtons = null, back = null) {
   const Keyboard = getKeyboardModule();
 
   const builder = Keyboard.builder();
@@ -75,6 +75,16 @@ function buildInlineFeedbackKeyboard(genId, presetButtons = null) {
     payload: { a: 'regen', g: genId },
     color: Keyboard.PRIMARY_COLOR
   });
+
+  if (back?.packId) {
+    builder.row();
+    builder.callbackButton({
+      label: back.label || 'Назад',
+      payload: { a: 'back', pk: back.packId },
+      color: Keyboard.SECONDARY_COLOR
+    });
+  }
+
   builder.inline(true);
   return builder;
 }
