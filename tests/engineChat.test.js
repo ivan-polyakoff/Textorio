@@ -183,6 +183,8 @@ describe('движок: пресеты стиля', () => {
     expect(firstRestyle).toContain('Ты — Александр Сергеевич Пушкин');
     expect(firstRestyle).toContain('Лексика:');
     expect(firstRestyle).toContain('Синтаксис:');
+    expect(firstRestyle).toContain('Задачи (подстрой под текст');
+    expect(firstRestyle).toContain('Милостивый государь');
     expect(firstRestyle).toContain('Форма (обязательна): стихотворение');
     expect(firstRestyle).toContain('Продали дачу. Звоните.');
     expect(firstRestyle).not.toContain('Предыдущий вариант');

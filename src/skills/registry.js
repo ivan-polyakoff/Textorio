@@ -14,10 +14,11 @@
 //   kind: 'text' (по умолчанию):
 //   acceptsPhoto: true,              // фото опционально: есть фото — генерация по vision
 //   presets: [{ id, button, role?, lexicon?, syntax?, rhythm?, intonation?,
-//               forbidden?, form?, verseChoice?, instruction? }],
+//               forbidden?, tasks?, form?, verseChoice?, instruction? }],
 //                                    // готовые стили (см. style_improve): поля — данные
 //                                    // для промпта; form: 'poem' — всегда стихи;
-//                                    // verseChoice: true — спросить «стихи или проза?»
+//                                    // verseChoice: true — спросить «стихи или проза?»;
+//                                    // tasks: [{ when, instruction }] — правила под тип текста
 //   ask: '...',                      // что спросить после нажатия кнопки
 //   emptyAsk: '...',                 // если в состоянии пришло не текстовое сообщение
 //   prompt: (input) => '...',        // промпт для провайдера
