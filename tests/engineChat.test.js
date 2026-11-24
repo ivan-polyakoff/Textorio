@@ -128,7 +128,7 @@ describe('движок: пресеты стиля', () => {
     const triggerKeyboard = JSON.parse(trigger.send.mock.calls[1][1].keyboard.toString());
     expect(triggerKeyboard.inline).toBe(true);
     expect(labelsOf(trigger.send.mock.calls[1][1])).toEqual([
-      'Деловой', 'Неформальный деловой', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский', 'Помощь', 'Я — автор'
+      'Деловой', 'Неформальный деловой', 'Дружеский', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский', 'Помощь', 'Я — автор'
     ]);
 
     const presetMessage = message(senderId, 'Деловой');
@@ -152,7 +152,7 @@ describe('движок: пресеты стиля', () => {
       return payload.a === 'preset';
     });
     expect(presetButtons.map((b) => b.action.label)).toEqual([
-      'Деловой', 'Неформальный деловой', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский'
+      'Деловой', 'Неформальный деловой', 'Дружеский', 'Поэтичный', 'Довлатов', 'Пушкин', 'Бродский'
     ]);
 
     const generation = profileStore.load(senderId).lastGeneration;
@@ -250,6 +250,7 @@ describe('движок: пресеты стиля', () => {
     expect(text).toContain('Готовые стили');
     expect(text).toContain('Неформальный деловой стиль (Human-to-Human)');
     expect(text).toContain('Стиль Пушкина');
+    expect(text).toContain('Дружеский стиль (Personal / Casual)');
   });
 
   it('инлайн-кнопка стиля до текста запоминает стиль, «Я — автор» возвращает в раздел', async () => {
