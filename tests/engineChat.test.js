@@ -466,7 +466,7 @@ describe('движок: пресеты стиля', () => {
     const verseCall = styleClick.send.mock.calls.find((call) => call[1]?.keyboard);
     expect(verseCall).toBeTruthy();
     const verseKeyboard = JSON.parse(verseCall[1].keyboard.toString());
-    expect(verseKeyboard.buttons.flat().map((b) => b.action.label)).toEqual(['Стихами', 'Прозой', '⬅️ Назад']);
+    expect(verseKeyboard.buttons.flat().map((b) => b.action.label)).toEqual(['Стихами', 'Прозой']);
 
     await sleep(10);
     const prose = callback(senderId, { a: 'verse', s: 'post_topic', p: 'pushkin', g: generation.id, v: 'prose' });

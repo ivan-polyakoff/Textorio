@@ -153,7 +153,7 @@ function buildInlinePostContextKeyboard({ skillId, backLabel, packId }) {
 
 // Выбор формы для стилей, где она не задана жёстко (например, Пушкин):
 // payload: { a: 'verse', v: 'poem'|'prose', s: skillId, p: presetId, g?: genId }.
-function buildInlineVerseKeyboard({ skillId, presetId, backLabel, packId, generationId = null }) {
+function buildInlineVerseKeyboard({ skillId, presetId, generationId = null }) {
   const Keyboard = getKeyboardModule();
 
   const builder = Keyboard.builder();
@@ -168,12 +168,6 @@ function buildInlineVerseKeyboard({ skillId, presetId, backLabel, packId, genera
   builder.callbackButton({
     label: 'Прозой',
     payload: { ...base, v: 'prose' },
-    color: Keyboard.SECONDARY_COLOR
-  });
-  builder.row();
-  builder.callbackButton({
-    label: backLabel,
-    payload: { a: 'back', pk: packId },
     color: Keyboard.SECONDARY_COLOR
   });
   builder.inline(true);

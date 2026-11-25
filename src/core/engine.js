@@ -92,8 +92,6 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     return buildInlineVerseKeyboard({
       skillId: skill.id,
       presetId: preset.id,
-      backLabel: '⬅️ Назад',
-      packId: skill.pack,
       generationId
     });
   }
