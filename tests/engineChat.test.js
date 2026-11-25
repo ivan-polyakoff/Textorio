@@ -450,6 +450,36 @@ describe('движок: пресеты стиля', () => {
     expect(labels).not.toContain('⬅️ Назад');
   });
 
+  it('пост: Пушкин под результатом — выбор «Прозой» перегенерирует пост', async () => {
+    const { engine, provider, profileStore, message, callback } = makeHarness({ chatReply: 'Готовый пост' });
+    const senderId = 839;
+
+    await engine.handleMessage(message(senderId, 'Создать пост'));
+    await engine.handleMessage(message(senderId, 'Сегодня всё успел'));
+    await engine.handleMessage(message(senderId, 'проспал, слякоть'));
+
+    const generation = profileStore.load(senderId).lastGeneration;
+    await sleep(10);
+    const styleClick = callback(senderId, { a: 'style', s: 'post_topic', p: 'pushkin' });
+    await engine.handleMessageEvent(styleClick);
+
+    const verseCall = styleClick.send.mock.calls.find((call) => call[1]?.keyboard);
+    expect(verseCall).toBeTruthy();
+    const verseKeyboard = JSON.parse(verseCall[1].keyboard.toString());
+    expect(verseKeyboard.buttons.flat().map((b) => b.action.label)).toEqual(['Стихами', 'Прозой', '⬅️ Назад']);
+
+    await sleep(10);
+    const prose = callback(senderId, { a: 'verse', s: 'post_topic', p: 'pushkin', g: generation.id, v: 'prose' });
+    await engine.handleMessageEvent(prose);
+    await sleep(10);
+
+    expect(prose.answer.mock.calls.map((call) => call[0])).not.toContain('Не понял стиль');
+    expect(provider.chat).toHaveBeenCalledTimes(2);
+    const prompt = provider.chat.mock.calls[1][0];
+    expect(prompt).toContain('Форма (обязательна): проза');
+    expect(prompt).toContain('Стиль оформления (обязателен)');
+  });
+
   it('пост: кнопка стиля (payload a=style) под результатом перегенерирует пост', async () => {
     const { engine, provider, profileStore, message, callback } = makeHarness({ chatReply: 'Готовый пост' });
     const senderId = 838;

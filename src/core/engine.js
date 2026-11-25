@@ -1052,7 +1052,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       // Выбор формы (стихи/проза) для стилей с verseChoice.
       if (payload.a === 'verse') {
         const skill = registry.findSkillById(payload.s);
-        const preset = (skill?.presets || []).find((item) => item.id === payload.p);
+        const preset = (skill?.presets || skill?.resultPresets || []).find((item) => item.id === payload.p);
         const verse = payload.v === 'poem';
 
         if (!skill || !preset) {
