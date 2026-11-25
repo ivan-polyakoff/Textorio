@@ -379,7 +379,7 @@ describe('движок: пресеты стиля', () => {
     expect(provider.chat).toHaveBeenCalledTimes(1);
     const prompt = provider.chat.mock.calls[0][0];
     expect(prompt).toContain('личного блога');
-    expect(prompt).toContain('Правило трёх мелочей');
+    expect(prompt).toContain('Точка перелома');
     expect(prompt).toContain('проспал, за окном слякоть');
     expect(prompt).not.toContain('вопрос читателю');
   });
@@ -395,7 +395,11 @@ describe('движок: пресеты стиля', () => {
     expect(provider.chat).toHaveBeenCalledTimes(1);
     const prompt = provider.chat.mock.calls[0][0];
     expect(prompt).toContain('Сегодня всё успел');
-    expect(prompt).toContain('придумай сам по теме');
+    expect(prompt).toContain('Заполни каркас сцены сам');
+    // Никаких предустановленных деталей сцены в промпте быть не должно.
+    expect(prompt).not.toContain('недосыпа');
+    expect(prompt).not.toContain('кружк');
+    expect(prompt).not.toContain('слякоть');
   });
 
   it('пост: «/пост тема» генерит сразу, тема идёт вводными', async () => {
