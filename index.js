@@ -50,6 +50,7 @@ const engine = createBotEngine({
   registry,
   personaId: env.persona,
   profileStore,
+  logPrompts: env.logPrompts,
   moderationPolicy: env.moderation,
   adminIds: env.adminIds,
   animation

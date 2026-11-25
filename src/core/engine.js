@@ -20,7 +20,7 @@ const USER_STATE_TTL_MS = 30 * 60 * 1000;
 const GENERATION_TTL_MS = 30 * 60 * 1000;
 const MAX_SAVED_FEEDBACKS = 5;
 
-function createBotEngine({ vk, provider, assistant, registry, personaId, profileStore, rateLimitMs, moderationPolicy, adminIds, animation }) {
+function createBotEngine({ vk, provider, assistant, registry, personaId, profileStore, rateLimitMs, moderationPolicy, adminIds, animation, logPrompts = false }) {
   const persona = getPersona(personaId);
   const rateLimiter = createRateLimiter(rateLimitMs || RATE_LIMIT_MS);
   const userStates = new Map();
@@ -46,6 +46,13 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     rateLimiter.prune(now);
   }, 5 * 60 * 1000);
   stateCleanupIntervalId.unref?.();
+
+  // Полный промпт в журнал: включается флагом LOG_PROMPTS=true.
+  // По умолчанию выключено — в логи не пишем содержимое сообщений.
+  function logPrompt(label, prompt, senderId) {
+    if (!logPrompts || !prompt) return;
+    logger.log(`Промпт [${label}] от ${senderId}, длина ${prompt.length}:\n${prompt}`);
+  }
 
   function getUserState(senderId) {
     const state = userStates.get(senderId);
@@ -214,7 +221,11 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
     if (critique) feedbacks.push(critique);
 
-    await runGeneration(context, null, () => provider.chat(buildRevisionPrompt(skill, generation, critique, context.senderId)), {
+    await runGeneration(context, null, () => {
+      const prompt = buildRevisionPrompt(skill, generation, critique, context.senderId);
+      logPrompt(`${skill.id}:revision`, prompt, context.senderId);
+      return provider.chat(prompt);
+    }, {
       skillId: skill.id,
       kind: skill.kind,
       input: generation.input,
@@ -365,15 +376,19 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
   async function generateByText(skill, input, senderId) {
     const preset = (skill.presets || []).find((item) => item.id === input.preset) || null;
-    return provider.chat(applyStyleHint(skill.prompt(input.text, preset, { verse: input.verse, context: input.context }), senderId));
+    const prompt = applyStyleHint(skill.prompt(input.text, preset, { verse: input.verse, context: input.context }), senderId);
+    logPrompt(`${skill.id}${preset ? `:${preset.id}` : ''}`, prompt, senderId);
+    return provider.chat(prompt);
   }
 
   async function generateByPhoto(skill, photoUrls, caption, senderId) {
     try {
       const image = await assistant.downloadImage(photoUrls);
+      const prompt = skill.prompt(caption);
+      logPrompt(`${skill.id}:photo`, prompt, senderId);
       return await provider.vision(image.buffer, image.contentType, caption, {
         // Без карточки стиля: она описывает прошлые кадры и сбивает модель.
-        prompt: skill.prompt(caption)
+        prompt
       });
     } catch (error) {
       if (error.stage === 'photo_size') {
@@ -405,8 +420,10 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
   async function generateByVision(skill, text, photoUrls, senderId) {
     try {
       const image = await assistant.downloadImage(photoUrls);
+      const prompt = applyStyleHint(skill.prompt(text), senderId);
+      logPrompt(`${skill.id}:vision`, prompt, senderId);
       return await provider.vision(image.buffer, image.contentType, text, {
-        prompt: applyStyleHint(skill.prompt(text), senderId)
+        prompt
       });
     } catch (error) {
       if (error.stage === 'photo_size') {
@@ -889,6 +906,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
           ? persona.historyWrapper(text, systemPrompt, historyText)
           : persona.replyWrapper(text, systemPrompt);
 
+        logPrompt('chat', prompt, context.senderId);
         const { reply, refused } = await runGeneration(context, registry.mainMenuRows(), () => provider.chat(prompt));
 
         // В историю пишем только осмысленные ответы: отказы и ошибки — нет.

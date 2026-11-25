@@ -32,6 +32,7 @@ const env = {
   // Настройки фото — политика приложения, общая для всех провайдеров.
   photoDownloadTimeoutMs: Number(process.env.VK_PHOTO_DOWNLOAD_TIMEOUT_MS) || 30000,
   photoMaxSizeMb: Number(process.env.VK_PHOTO_MAX_SIZE_MB) || 5,
+  logPrompts: process.env.LOG_PROMPTS === 'true',
   gigachat: {
     timeoutMs: Number(process.env.GIGACHAT_TIMEOUT_MS) || 30000,
     retryAttempts: Number(process.env.GIGACHAT_RETRY_ATTEMPTS) || 3,

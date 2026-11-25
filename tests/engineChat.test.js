@@ -9,7 +9,7 @@ const { GENERAL_REFUSAL_TEXT } = require('../src/core/moderation');
 const bloggersPack = require('../src/skills/packs/bloggers');
 const businessPack = require('../src/skills/packs/business');
 
-function makeHarness({ chatReply = 'ОТВЕТ' } = {}) {
+function makeHarness({ chatReply = 'ОТВЕТ', logPrompts = false } = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'textorio-chat-'));
   const profileStore = createProfileStore({ dataDir });
   const provider = {
@@ -27,7 +27,8 @@ function makeHarness({ chatReply = 'ОТВЕТ' } = {}) {
     registry,
     personaId: 'hedgehog',
     profileStore,
-    rateLimitMs: 1
+    rateLimitMs: 1,
+    logPrompts
   });
 
   function message(senderId, text) {
@@ -361,6 +362,34 @@ describe('движок: пресеты стиля', () => {
     expect(prompt).toContain('Композиция и оптика');
     expect(prompt).toContain('Задачи (подстрой под текст');
     expect(prompt).toContain('Форма (обязательна): стихотворение');
+  });
+
+  it('logPrompts: промпт пишется в журнал только при включённом флаге', async () => {
+    const { engine, message } = makeHarness({ logPrompts: true });
+    const senderId = 830;
+    const logSpy = jest.spyOn(require('../src/utils/logger').logger, 'log');
+
+    await engine.handleMessage(message(senderId, '/пост тема про ёжика'));
+    await sleep(5);
+
+    const promptLines = logSpy.mock.calls.map((call) => String(call[0])).filter((line) => line.startsWith('Промпт ['));
+
+    expect(promptLines).toHaveLength(1);
+    expect(promptLines[0]).toContain('post_topic');
+    expect(promptLines[0]).toContain('тема про ёжика');
+    logSpy.mockRestore();
+  });
+
+  it('по умолчанию промпты в журнал не пишутся', async () => {
+    const { engine, message } = makeHarness();
+    const senderId = 831;
+    const logSpy = jest.spyOn(require('../src/utils/logger').logger, 'log');
+
+    await engine.handleMessage(message(senderId, '/пост тема про ёжика'));
+    await sleep(5);
+
+    expect(logSpy.mock.calls.map((call) => String(call[0])).some((line) => line.startsWith('Промпт ['))).toBe(false);
+    logSpy.mockRestore();
   });
 
   it('пост: тема → вопрос деталей; текст с деталями попадает в промпт', async () => {
