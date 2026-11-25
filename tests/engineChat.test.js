@@ -450,6 +450,26 @@ describe('движок: пресеты стиля', () => {
     expect(labels).not.toContain('⬅️ Назад');
   });
 
+  it('пост: кнопка стиля (payload a=style) под результатом перегенерирует пост', async () => {
+    const { engine, provider, profileStore, message, callback } = makeHarness({ chatReply: 'Готовый пост' });
+    const senderId = 838;
+
+    await engine.handleMessage(message(senderId, 'Создать пост'));
+    await engine.handleMessage(message(senderId, 'Сегодня всё успел'));
+    await engine.handleMessage(message(senderId, 'проспал, слякоть'));
+
+    const generation = profileStore.load(senderId).lastGeneration;
+    await sleep(10);
+    const click = callback(senderId, { a: 'style', s: 'post_topic', p: 'dovlatov' });
+    await engine.handleMessageEvent(click);
+    await sleep(10);
+
+    expect(click.answer.mock.calls.map((call) => call[0])).not.toContain('Не понял стиль');
+    expect(provider.chat).toHaveBeenCalledTimes(2);
+    expect(provider.chat.mock.calls[1][0]).toContain('Стиль оформления (обязателен)');
+    expect(profileStore.load(senderId).lastGeneration.input.preset).toBe('dovlatov');
+  });
+
   it('пост: кнопка стиля под результатом перегенерирует пост в этом стиле', async () => {
     const { engine, provider, profileStore, message, callback } = makeHarness({ chatReply: 'Готовый пост' });
     const senderId = 835;

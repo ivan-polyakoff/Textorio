@@ -996,7 +996,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       // Выбор готового стиля до ввода текста — состояния и генерации ещё нет.
       if (payload.a === 'style') {
         const skill = registry.findSkillById(payload.s);
-        const preset = (skill?.presets || []).find((item) => item.id === payload.p);
+        const preset = (skill?.presets || skill?.resultPresets || []).find((item) => item.id === payload.p);
 
         if (!skill || !preset) {
           await safeAnswer(context, 'Не понял стиль');
