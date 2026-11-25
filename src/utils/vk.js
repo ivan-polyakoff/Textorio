@@ -126,6 +126,27 @@ function buildInlineStyleKeyboard({ presets, skillId, backLabel, packId }) {
   return builder;
 }
 
+// Вопрос бытовых деталей после темы поста:
+// payload: { a: 'postctx', s: skillId } (придумать сам) и { a: 'back', pk: packId }.
+function buildInlinePostContextKeyboard({ skillId, backLabel, packId }) {
+  const Keyboard = getKeyboardModule();
+
+  const builder = Keyboard.builder();
+
+  builder.callbackButton({
+    label: '🎲 Придумай сам',
+    payload: { a: 'postctx', s: skillId },
+    color: Keyboard.PRIMARY_COLOR
+  });
+  builder.callbackButton({
+    label: backLabel || '⬅️ Назад',
+    payload: { a: 'back', pk: packId },
+    color: Keyboard.SECONDARY_COLOR
+  });
+  builder.inline(true);
+  return builder;
+}
+
 // Выбор формы для стилей, где она не задана жёстко (например, Пушкин):
 // payload: { a: 'verse', v: 'poem'|'prose', s: skillId, p: presetId, g?: genId }.
 function buildInlineVerseKeyboard({ skillId, presetId, backLabel, packId, generationId = null }) {
@@ -270,5 +291,6 @@ module.exports = {
   buildInlineFeedbackKeyboard,
   buildInlineStyleKeyboard,
   buildInlineVerseKeyboard,
+  buildInlinePostContextKeyboard,
   buildEmptyKeyboard
 };

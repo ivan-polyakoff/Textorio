@@ -63,13 +63,14 @@ describe('движок: обратная связь по генерациям', 
 
     await sleep(15);
     await engine.handleMessage(message(senderId, 'тема про ёжика'));
+    await engine.handleMessage(message(senderId, 'утро, слякоть'));
 
     expect(provider.chat).toHaveBeenCalledTimes(1);
     expect(provider.chat.mock.calls[0][0]).toContain('тема про ёжика');
 
     const first = profileStore.load(senderId).lastGeneration;
     expect(first.skillId).toBe('post_topic');
-    expect(first.input).toEqual({ text: 'тема про ёжика' });
+    expect(first.input).toEqual({ text: 'тема про ёжика', context: 'утро, слякоть' });
     expect(first.feedbacks).toEqual([]);
     expect(first.id).toBeTruthy();
 
@@ -93,6 +94,7 @@ describe('движок: обратная связь по генерациям', 
     await engine.handleMessage(message(senderId, 'Создать пост'));
     await sleep(15);
     await engine.handleMessage(message(senderId, 'тема'));
+    await engine.handleMessage(message(senderId, 'утро, слякоть'));
     const first = profileStore.load(senderId).lastGeneration;
 
     await sleep(15);
@@ -120,6 +122,7 @@ describe('движок: обратная связь по генерациям', 
     await engine.handleMessage(message(senderId, 'Создать пост'));
     await sleep(15);
     await engine.handleMessage(message(senderId, 'тема'));
+    await engine.handleMessage(message(senderId, 'утро, слякоть'));
     const first = profileStore.load(senderId).lastGeneration;
 
     await sleep(15);
@@ -184,6 +187,7 @@ describe('движок: обратная связь по генерациям', 
     await engine.handleMessage(message(senderId, 'Создать пост'));
     await sleep(15);
     await engine.handleMessage(message(senderId, 'тема'));
+    await engine.handleMessage(message(senderId, 'утро, слякоть'));
     const generationId = profileStore.load(senderId).lastGeneration.id;
 
     await engine.handleMessage(message(senderId, '/start'));

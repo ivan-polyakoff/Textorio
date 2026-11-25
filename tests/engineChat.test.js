@@ -363,6 +363,53 @@ describe('движок: пресеты стиля', () => {
     expect(prompt).toContain('Форма (обязательна): стихотворение');
   });
 
+  it('пост: тема → вопрос деталей; текст с деталями попадает в промпт', async () => {
+    const { engine, provider, message, callback } = makeHarness({ chatReply: 'Уронил пульт с утра' });
+    const senderId = 820;
+
+    await engine.handleMessage(message(senderId, 'Создать пост'));
+    const topicMessage = message(senderId, 'Сегодня всё успел');
+    await engine.handleMessage(topicMessage);
+
+    const kb = JSON.parse(topicMessage.send.mock.calls[0][1].keyboard.toString());
+    const labels = kb.buttons.flat().map((b) => b.action.label);
+    expect(labels).toEqual(['🎲 Придумай сам', '⬅️ Назад']);
+
+    await engine.handleMessage(message(senderId, 'проспал, за окном слякоть'));
+    expect(provider.chat).toHaveBeenCalledTimes(1);
+    const prompt = provider.chat.mock.calls[0][0];
+    expect(prompt).toContain('личного блога');
+    expect(prompt).toContain('Правило трёх мелочей');
+    expect(prompt).toContain('проспал, за окном слякоть');
+    expect(prompt).not.toContain('вопрос читателю');
+  });
+
+  it('пост: «Придумай сам» генерит по теме без деталей', async () => {
+    const { engine, provider, message, callback } = makeHarness({ chatReply: 'Уронил пульт с утра' });
+    const senderId = 821;
+
+    await engine.handleMessage(message(senderId, 'Создать пост'));
+    await engine.handleMessage(message(senderId, 'Сегодня всё успел'));
+    await engine.handleMessageEvent(callback(senderId, { a: 'postctx', s: 'post_topic' }));
+
+    expect(provider.chat).toHaveBeenCalledTimes(1);
+    const prompt = provider.chat.mock.calls[0][0];
+    expect(prompt).toContain('Сегодня всё успел');
+    expect(prompt).toContain('придумай сам по теме');
+  });
+
+  it('пост: «/пост тема» генерит сразу, тема идёт вводными', async () => {
+    const { engine, provider, message } = makeHarness({ chatReply: 'Уронил пульт с утра' });
+    const senderId = 822;
+
+    await engine.handleMessage(message(senderId, '/пост сегодня всё успел'));
+
+    expect(provider.chat).toHaveBeenCalledTimes(1);
+    const prompt = provider.chat.mock.calls[0][0];
+    expect(prompt).toContain('сегодня всё успел');
+    expect(prompt).toContain('личного блога');
+  });
+
   it('под результатом есть «Назад» — открывает меню раздела', async () => {
     const { engine, message, callback } = makeHarness();
     const senderId = 809;

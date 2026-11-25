@@ -64,6 +64,7 @@ describe('движок: память стиля', () => {
     await engine.handleMessage(message(senderId, 'Создать пост'));
     await sleep(15);
     await engine.handleMessage(message(senderId, 'тема про кота'));
+    await engine.handleMessage(message(senderId, 'утро, слякоть'));
 
     const generation = profileStore.load(senderId).lastGeneration;
 
@@ -92,6 +93,7 @@ describe('движок: память стиля', () => {
     await engine.handleMessage(message(senderId, 'Создать пост'));
     await sleep(15);
     await engine.handleMessage(message(senderId, 'тема'));
+    await engine.handleMessage(message(senderId, 'утро, слякоть'));
 
     const generation = profileStore.load(senderId).lastGeneration;
 
@@ -123,6 +125,7 @@ describe('движок: память стиля', () => {
     await engine.handleMessage(message(senderId, 'Создать пост'));
     await sleep(15);
     await engine.handleMessage(message(senderId, 'тема'));
+    await engine.handleMessage(message(senderId, 'утро, слякоть'));
 
     const generation = profileStore.load(senderId).lastGeneration;
     await sleep(15);

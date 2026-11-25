@@ -3,7 +3,7 @@
 // через контракт (src/providers/provider.js). Ни VK, ни GigaChat здесь не упоминаются.
 // Специфика VK (клавиатуры vk-io, скачивание фото) остаётся в transport.
 
-const { sendWithOptionalKeyboard, getPhotoUrls, withTyping, buildKeyboard, buildInlineFeedbackKeyboard, buildInlineStyleKeyboard, buildInlineVerseKeyboard, buildEmptyKeyboard } = require('../utils/vk');
+const { sendWithOptionalKeyboard, getPhotoUrls, withTyping, buildKeyboard, buildInlineFeedbackKeyboard, buildInlineStyleKeyboard, buildInlineVerseKeyboard, buildInlinePostContextKeyboard, buildEmptyKeyboard } = require('../utils/vk');
 const { createRateLimiter } = require('../utils/rateLimiter');
 const { getPersona } = require('../config/persona');
 const { SAFETY_RULES } = require('../config/safety');
@@ -69,6 +69,15 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
   function styleKeyboard(skill) {
     return buildInlineStyleKeyboard({
       presets: skill.presets,
+      skillId: skill.id,
+      backLabel: '⬅️ Назад',
+      packId: skill.pack
+    });
+  }
+
+  // Вопрос бытовых деталей после темы поста (скилл с wantsContext).
+  function postContextKeyboard(skill) {
+    return buildInlinePostContextKeyboard({
       skillId: skill.id,
       backLabel: '⬅️ Назад',
       packId: skill.pack
@@ -357,7 +366,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
   async function generateByText(skill, input, senderId) {
     const preset = (skill.presets || []).find((item) => item.id === input.preset) || null;
-    return provider.chat(applyStyleHint(skill.prompt(input.text, preset, { verse: input.verse }), senderId));
+    return provider.chat(applyStyleHint(skill.prompt(input.text, preset, { verse: input.verse, context: input.context }), senderId));
   }
 
   async function generateByPhoto(skill, photoUrls, caption, senderId) {
@@ -446,6 +455,32 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
         await send(context, `Стиль «${preset.button}» выбрал. Теперь пришлите текст, который нужно улучшить.`);
         return;
       }
+    }
+
+    // Двухшаговый пост: тема уже сохранена, теперь ждём бытовые детали.
+    if (skill.wantsContext && userState.topic) {
+      if (!context.text) {
+        await send(context, skill.contextAsk, null, postContextKeyboard(skill));
+        return;
+      }
+
+      deleteUserState(context.senderId);
+      const input = { text: userState.topic, context: context.text };
+
+      await runGeneration(
+        context,
+        registry.packRows(skill.pack),
+        () => runSkill(skill, context, input),
+        { skillId: skill.id, kind: skill.kind, input, feedbacks: [] }
+      );
+      return;
+    }
+
+    // Скилл с вопросом о деталях: первый текст — это тема, а не генерация.
+    if (skill.wantsContext) {
+      setUserState(context.senderId, registry.stateOf(skill), { topic: context.text });
+      await send(context, skill.contextAsk, null, postContextKeyboard(skill));
+      return;
     }
 
     if (skill.kind === 'photo') {
@@ -540,11 +575,14 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     }
 
     deleteUserState(context.senderId);
+    // Для «/пост тема» детали не спрашиваем: тема сама и есть вводные,
+    // остальное модель дозаполнит по шаблону сцены.
+    const input = { text: arg };
     await runGeneration(
       context,
       registry.packRows(skill.pack),
-      () => runSkill(skill, context, { text: arg }),
-      { skillId: skill.id, kind: skill.kind, input: { text: arg }, feedbacks: [] }
+      () => runSkill(skill, context, input),
+      { skillId: skill.id, kind: skill.kind, input, feedbacks: [] }
     );
   }
 
@@ -908,6 +946,28 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
         }
 
         await context.send(registry.findNavigation('/start').text, { keyboard: buildKeyboard(registry.mainMenuRows()) });
+        return;
+      }
+
+      // «Придумай сам» в вопросе бытовых деталей: генерим по теме без деталей.
+      if (payload.a === 'postctx') {
+        const skill = registry.findSkillById(payload.s);
+        const userState = getUserState(senderId);
+
+        if (!skill?.wantsContext || !userState?.topic) {
+          await safeAnswer(context, 'Сначала напишите тему поста');
+          return;
+        }
+
+        deleteUserState(senderId);
+        const input = { text: userState.topic, context: null };
+        await safeAnswer(context, 'Придумываю детали сам');
+        await runGeneration(
+          context,
+          registry.packRows(skill.pack),
+          () => runSkill(skill, context, input),
+          { skillId: skill.id, kind: skill.kind, input, feedbacks: [] }
+        );
         return;
       }
 

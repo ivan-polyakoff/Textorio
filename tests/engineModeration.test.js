@@ -133,6 +133,7 @@ describe('движок: правила безопасности в промпт�
     await engine.handleMessage(message(senderId, 'Создать пост'));
     await sleep(15);
     await engine.handleMessage(message(senderId, 'тема про ёжика'));
+    await engine.handleMessage(message(senderId, 'утро, слякоть'));
 
     expect(provider.chat).toHaveBeenCalledTimes(1);
     expect(provider.chat.mock.calls[0][0]).toContain(SAFETY_RULES);
