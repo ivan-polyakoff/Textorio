@@ -189,7 +189,10 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       parts.push(`Предыдущий вариант поста:\n${generation.result}`);
     } else {
       const preset = (skill.presets || []).find((item) => item.id === generation.input.preset) || null;
-      parts.push(skill.prompt(generation.input.text, preset, { verse: generation.input.verse }));
+      parts.push(skill.prompt(generation.input.text, preset, {
+        verse: generation.input.verse,
+        context: generation.input.context
+      }));
       parts.push(`Предыдущий вариант:\n${generation.result}`);
     }
 
@@ -353,11 +356,12 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       const skill = registry.findSkillById(meta.skillId);
       const presets = skill?.presets || null;
 
-      // «Назад» под результатом не даём: reply-меню после инлайн-кнопок
-      // в VK не разворачивается — навигация только через меню стилей.
+      // «Назад» под результатом — инлайн-кнопкой в меню раздела (callback),
+      // поэтому ограничение reply-меню VK здесь не мешает.
       // VK: в инлайн-клавиатуре максимум 10 кнопок. Поэтому стили не подмешиваем
       // к реакциям, а шлём отдельным сообщением под результатом.
-      const feedback = generation ? buildInlineFeedbackKeyboard(generation.id, null, null) : undefined;
+      const back = skill?.pack ? { label: '⬅️ Назад', packId: skill.pack } : null;
+      const feedback = generation ? buildInlineFeedbackKeyboard(generation.id, null, back) : undefined;
       await send(context, reply, null, feedback);
 
       if (presets) {
@@ -942,6 +946,13 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       if (!payload.a) return;
 
       const senderId = context.userId ?? context.senderId;
+
+      // vk-io message_event не содержит senderId (только userId). Без него
+      // генерация из колбэка сохранилась бы под ключом undefined, и 🔄/правки
+      // сразу считали бы контекст устаревшим. Даём контексту тот же ключ.
+      if (context.senderId === undefined) {
+        context.senderId = senderId;
+      }
 
       // Тишина для заблокированных — кнопки тоже не срабатывают.
       if (profileStore && isBlocked(profileStore.load(senderId))) {

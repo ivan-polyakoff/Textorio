@@ -431,6 +431,44 @@ describe('движок: пресеты стиля', () => {
     expect(prompt).not.toContain('слякоть');
   });
 
+  it('пост: «Придумай сам» → генерация сохранена под пользователем, 🔄 работает', async () => {
+    const { engine, provider, profileStore, message, callback } = makeHarness({ chatReply: 'Первый вариант' });
+    const senderId = 832;
+
+    await engine.handleMessage(message(senderId, 'Создать пост'));
+    await engine.handleMessage(message(senderId, 'Сегодня всё успел'));
+    await engine.handleMessageEvent(callback(senderId, { a: 'postctx', s: 'post_topic' }));
+
+    const generation = profileStore.load(senderId).lastGeneration;
+    expect(generation).toBeTruthy();
+    expect(profileStore.load(undefined).lastGeneration).toBeFalsy();
+
+    await sleep(10);
+    const regen = callback(senderId, { a: 'regen', g: generation.id });
+    await engine.handleMessageEvent(regen);
+    await sleep(10);
+
+    expect(provider.chat).toHaveBeenCalledTimes(2);
+    expect(regen.answer.mock.calls.map((call) => call[0])).not.toContain('Контекст устарел — сгенерируйте заново');
+  });
+
+  it('пост: перегенерация сохраняет вводные автора', async () => {
+    const { engine, provider, message, callback, profileStore } = makeHarness({ chatReply: 'Первый вариант' });
+    const senderId = 833;
+
+    await engine.handleMessage(message(senderId, 'Создать пост'));
+    await engine.handleMessage(message(senderId, 'Сегодня всё успел'));
+    await engine.handleMessage(message(senderId, 'проспал, за окном слякоть'));
+
+    const generation = profileStore.load(senderId).lastGeneration;
+    await sleep(10);
+    await engine.handleMessageEvent(callback(senderId, { a: 'regen', g: generation.id }));
+    await sleep(10);
+
+    const revisionPrompt = provider.chat.mock.calls[1][0];
+    expect(revisionPrompt).toContain('проспал, за окном слякоть');
+  });
+
   it('пост: «/пост тема» генерит сразу, тема идёт вводными', async () => {
     const { engine, provider, message } = makeHarness({ chatReply: 'Уронил пульт с утра' });
     const senderId = 822;
@@ -443,7 +481,7 @@ describe('движок: пресеты стиля', () => {
     expect(prompt).toContain('личного блога');
   });
 
-  it('под результатом нет «Назад» — только реакции', async () => {
+  it('под результатом есть «Назад» в меню раздела', async () => {
     const { engine, message } = makeHarness();
     const senderId = 809;
 
@@ -457,8 +495,8 @@ describe('движок: пресеты стиля', () => {
       const payload = typeof b.action.payload === 'string' ? JSON.parse(b.action.payload) : b.action.payload;
       return payload.a === 'back';
     });
-    expect(hasBack).toBe(false);
-    expect(keyboard.buttons.flat().map((b) => b.action.label)).toEqual(['👍', '👎', '🔄 Заново']);
+    expect(hasBack).toBe(true);
+    expect(keyboard.buttons.flat().map((b) => b.action.label)).toEqual(['👍', '👎', '🔄 Заново', '⬅️ Назад']);
   });
 
   it('без пресета промпт не содержит блок стиля', async () => {
