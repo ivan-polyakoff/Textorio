@@ -341,13 +341,12 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       const generation = saveGeneration(context.senderId, meta, reply, meta.feedbacks);
       const skill = registry.findSkillById(meta.skillId);
       const presets = skill?.presets || null;
-      const back = skill?.pack ? { label: '⬅️ Назад', packId: skill.pack } : null;
 
+      // «Назад» под результатом не даём: reply-меню после инлайн-кнопок
+      // в VK не разворачивается — навигация только через меню стилей.
       // VK: в инлайн-клавиатуре максимум 10 кнопок. Поэтому стили не подмешиваем
       // к реакциям, а шлём отдельным сообщением под результатом.
-      const feedback = generation
-        ? buildInlineFeedbackKeyboard(generation.id, null, presets ? null : back)
-        : undefined;
+      const feedback = generation ? buildInlineFeedbackKeyboard(generation.id, null, null) : undefined;
       await send(context, reply, null, feedback);
 
       if (presets) {

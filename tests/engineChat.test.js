@@ -410,24 +410,22 @@ describe('движок: пресеты стиля', () => {
     expect(prompt).toContain('личного блога');
   });
 
-  it('под результатом есть «Назад» — открывает меню раздела', async () => {
-    const { engine, message, callback } = makeHarness();
+  it('под результатом нет «Назад» — только реакции', async () => {
+    const { engine, message } = makeHarness();
     const senderId = 809;
 
     await engine.handleMessage(message(senderId, 'Создать пост'));
-    const textMessage = message(senderId, 'тема про ёжика');
-    await engine.handleMessage(textMessage);
+    await engine.handleMessage(message(senderId, 'тема про ёжика'));
+    const resultMessage = message(senderId, 'утро, слякоть');
+    await engine.handleMessage(resultMessage);
 
-    const keyboard = JSON.parse(textMessage.send.mock.calls[0][1].keyboard.toString());
-    const backButton = keyboard.buttons.flat().find((b) => {
+    const keyboard = JSON.parse(resultMessage.send.mock.calls[0][1].keyboard.toString());
+    const hasBack = keyboard.buttons.flat().some((b) => {
       const payload = typeof b.action.payload === 'string' ? JSON.parse(b.action.payload) : b.action.payload;
       return payload.a === 'back';
     });
-    expect(backButton.action.label).toBe('⬅️ Назад');
-
-    const backEvent = callback(senderId, { a: 'back', pk: 'bloggers' });
-    await engine.handleMessageEvent(backEvent);
-    expect(backEvent.send.mock.calls[0][0]).toContain('Раздел для авторов');
+    expect(hasBack).toBe(false);
+    expect(keyboard.buttons.flat().map((b) => b.action.label)).toEqual(['👍', '👎', '🔄 Заново']);
   });
 
   it('без пресета промпт не содержит блок стиля', async () => {
