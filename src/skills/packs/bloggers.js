@@ -58,7 +58,7 @@ function postBriefText(brief = POST_BRIEF) {
   ].join('\n\n');
 }
 
-module.exports = {
+const pack = {
   id: 'bloggers',
   button: 'Я — автор',
   icon: '✍️',
@@ -332,12 +332,18 @@ module.exports = {
       contextAsk: 'Тему понял. Добавьте пару бытовых деталей — что за ситуация, как настроение, самочувствие, что вокруг (можно одной строкой):',
       prompt: withSafetyRules((topic, preset, options = {}) => {
         const details = options.context?.trim() || '';
+        const wantVerse = options.verse === true;
         const contextBlock = details
           ? `Вводные от автора (используй как основу истории):\n"""\n${details}\n"""`
           : 'Вводные от автора: нет. Пиши строго по теме, ничего сверх темы не выдумывай.';
 
         return [
           postBriefText(),
+          '',
+          preset ? `Стиль оформления (обязателен):\n"""\n${presetStyleText(preset)}\n"""` : '',
+          preset ? 'Правила стиля выше приоритетнее общих советов по оформлению.' : '',
+          wantVerse ? 'Форма (обязательна): стихотворение. Напиши пост в стихах — рифма, ритм, строфы; сохрани смысл.' : '',
+          preset?.verseChoice && !wantVerse ? 'Форма (обязательна): проза. Без стихов, рифмы и разбивки на строки.' : '',
           '',
           contextBlock,
           '',
@@ -454,3 +460,14 @@ module.exports = {
     }
   ]
 };
+
+// Стили «Улучшить стиль» доступны и под готовым постом: пользователь может
+// сразу перегенерировать пост в выбранном стиле, не вводя текст заново.
+const styleSkill = pack.skills.find((skill) => skill.id === 'style_improve');
+const postSkill = pack.skills.find((skill) => skill.id === 'post_topic');
+
+if (styleSkill && postSkill) {
+  postSkill.resultPresets = styleSkill.presets;
+}
+
+module.exports = pack;

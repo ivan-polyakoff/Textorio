@@ -431,6 +431,87 @@ describe('движок: пресеты стиля', () => {
     expect(prompt).not.toContain('слякоть');
   });
 
+  it('пост: после генерации сразу предложено меню стилей', async () => {
+    const { engine, message } = makeHarness({ chatReply: 'Готовый пост' });
+    const senderId = 834;
+
+    await engine.handleMessage(message(senderId, 'Создать пост'));
+    await engine.handleMessage(message(senderId, 'Сегодня всё успел'));
+    const resultMessage = message(senderId, 'проспал, слякоть');
+    await engine.handleMessage(resultMessage);
+
+    const stylesMessage = resultMessage.send.mock.calls.find((call) => String(call[0]).startsWith('Можно переделать'));
+    expect(stylesMessage).toBeTruthy();
+
+    const keyboard = JSON.parse(stylesMessage[1].keyboard.toString());
+    const labels = keyboard.buttons.flat().map((b) => b.action.label);
+    expect(labels).toContain('💼 Деловой');
+    expect(labels).toContain('❓ Помощь');
+    expect(labels).toContain('⬅️ Назад');
+  });
+
+  it('пост: кнопка стиля под результатом перегенерирует пост в этом стиле', async () => {
+    const { engine, provider, profileStore, message, callback } = makeHarness({ chatReply: 'Готовый пост' });
+    const senderId = 835;
+
+    await engine.handleMessage(message(senderId, 'Создать пост'));
+    await engine.handleMessage(message(senderId, 'Сегодня всё успел'));
+    await engine.handleMessage(message(senderId, 'проспал, слякоть'));
+
+    const generation = profileStore.load(senderId).lastGeneration;
+    await sleep(10);
+    await engine.handleMessageEvent(callback(senderId, { a: 'preset', p: 'dovlatov', g: generation.id }));
+    await sleep(10);
+
+    expect(provider.chat).toHaveBeenCalledTimes(2);
+    const restylePrompt = provider.chat.mock.calls[1][0];
+    expect(restylePrompt).toContain('Стиль оформления (обязателен)');
+    expect(restylePrompt).toContain('проспал, слякоть');
+    expect(restylePrompt).toContain('Сегодня всё успел');
+
+    const updated = profileStore.load(senderId).lastGeneration;
+    expect(updated.input.preset).toBe('dovlatov');
+    expect(updated.skillId).toBe('post_topic');
+  });
+
+  it('пост: правка после смены стиля сохраняет стиль', async () => {
+    const { engine, provider, profileStore, message, callback } = makeHarness({ chatReply: 'Готовый пост' });
+    const senderId = 837;
+
+    await engine.handleMessage(message(senderId, 'Создать пост'));
+    await engine.handleMessage(message(senderId, 'Сегодня всё успел'));
+    await engine.handleMessage(message(senderId, 'проспал, слякоть'));
+
+    const generation = profileStore.load(senderId).lastGeneration;
+    await sleep(10);
+    await engine.handleMessageEvent(callback(senderId, { a: 'preset', p: 'dovlatov', g: generation.id }));
+    await sleep(10);
+
+    const restyled = profileStore.load(senderId).lastGeneration;
+    await sleep(10);
+    await engine.handleMessageEvent(callback(senderId, { a: 'regen', g: restyled.id }));
+    await sleep(10);
+
+    const revisionPrompt = provider.chat.mock.calls[2][0];
+    expect(revisionPrompt).toContain('Стиль оформления (обязателен)');
+    expect(revisionPrompt).toContain('Довлатов');
+  });
+
+  it('пост: справка по стилям доступна под результатом', async () => {
+    const { engine, message, callback } = makeHarness({ chatReply: 'Готовый пост' });
+    const senderId = 836;
+
+    await engine.handleMessage(message(senderId, 'Создать пост'));
+    await engine.handleMessage(message(senderId, 'Сегодня всё успел'));
+    await engine.handleMessage(message(senderId, 'проспал, слякоть'));
+
+    const help = callback(senderId, { a: 'styleHelp', s: 'post_topic' });
+    await engine.handleMessageEvent(help);
+
+    const helpText = help.send.mock.calls.map((call) => call[0]).find((text) => String(text).includes('Готовые стили'));
+    expect(helpText).toBeTruthy();
+  });
+
   it('пост: «Придумай сам» → генерация сохранена под пользователем, 🔄 работает', async () => {
     const { engine, provider, profileStore, message, callback } = makeHarness({ chatReply: 'Первый вариант' });
     const senderId = 832;

@@ -214,11 +214,12 @@ function createSkillRegistry(packs, options = {}) {
   // Справка по готовым стилям: заголовок + краткое описание для каждого.
   function presetHelpText(skillId) {
     const skill = findSkillById(skillId);
-    if (!skill?.presets?.length) return null;
+    const presets = skill?.presets || skill?.resultPresets || [];
+    if (!presets.length) return null;
 
     const parts = ['Готовые стили:'];
 
-    for (const preset of skill.presets) {
+    for (const preset of presets) {
       const block = [preset.title || preset.button, preset.help].filter(Boolean).join('\n');
       if (block) parts.push(block);
     }

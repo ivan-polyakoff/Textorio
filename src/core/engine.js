@@ -73,9 +73,9 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
   }
 
   // Инлайн-клавиатура стилей: остаётся видимой, пока пользователь печатает.
-  function styleKeyboard(skill) {
+  function styleKeyboard(skill, presets = skill.presets || skill.resultPresets) {
     return buildInlineStyleKeyboard({
-      presets: skill.presets,
+      presets,
       skillId: skill.id,
       backLabel: '⬅️ Назад',
       packId: skill.pack
@@ -188,7 +188,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       parts.push('Перепиши пост для социальной сети по правке пользователя. Исходное фото больше недоступно — опирайся на предыдущий вариант поста.');
       parts.push(`Предыдущий вариант поста:\n${generation.result}`);
     } else {
-      const preset = (skill.presets || []).find((item) => item.id === generation.input.preset) || null;
+      const preset = (skill.presets || skill.resultPresets || []).find((item) => item.id === generation.input.preset) || null;
       parts.push(skill.prompt(generation.input.text, preset, {
         verse: generation.input.verse,
         context: generation.input.context
@@ -262,7 +262,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
   // уже изменённый текст и стиль «дрейфует» от оригинала.
   function buildPresetPrompt(skill, generation, preset, senderId, verse) {
     const parts = [
-      skill.prompt(generation.input.text, preset, { verse }),
+      skill.prompt(generation.input.text, preset, { verse, context: generation.input.context }),
       'Перепиши именно исходный текст в заданном стиле оформления. Сохрани смысл и факты, не опирайся на предыдущие варианты.'
     ];
 
@@ -354,7 +354,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     if (meta) {
       const generation = saveGeneration(context.senderId, meta, reply, meta.feedbacks);
       const skill = registry.findSkillById(meta.skillId);
-      const presets = skill?.presets || null;
+      const presets = skill?.presets || skill?.resultPresets || null;
 
       // «Назад» под результатом — инлайн-кнопкой в меню раздела (callback),
       // поэтому ограничение reply-меню VK здесь не мешает.
@@ -365,7 +365,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       await send(context, reply, null, feedback);
 
       if (presets) {
-        await send(context, 'Можно переделать в другом стиле:', null, styleKeyboard(skill));
+        await send(context, 'Можно переделать в другом стиле:', null, styleKeyboard(skill, presets));
       }
 
       return { reply, refused };
@@ -379,7 +379,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
   // --- Генерация по типам скиллов ---
 
   async function generateByText(skill, input, senderId) {
-    const preset = (skill.presets || []).find((item) => item.id === input.preset) || null;
+    const preset = (skill.presets || skill.resultPresets || []).find((item) => item.id === input.preset) || null;
     const prompt = applyStyleHint(skill.prompt(input.text, preset, { verse: input.verse, context: input.context }), senderId);
     logPrompt(`${skill.id}${preset ? `:${preset.id}` : ''}`, prompt, senderId);
     return provider.chat(prompt);
@@ -1129,7 +1129,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
 
       if (payload.a === 'preset') {
         const skill = registry.findSkillById(generation.skillId);
-        const preset = (skill?.presets || []).find((item) => item.id === payload.p);
+        const preset = (skill?.presets || skill?.resultPresets || []).find((item) => item.id === payload.p);
 
         if (!preset) {
           await safeAnswer(context, 'Не понял стиль');
