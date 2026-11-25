@@ -73,22 +73,18 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
   }
 
   // Инлайн-клавиатура стилей: остаётся видимой, пока пользователь печатает.
-  function styleKeyboard(skill, presets = skill.presets || skill.resultPresets) {
+  function styleKeyboard(skill, presets = skill.presets || skill.resultPresets, { back = true } = {}) {
     return buildInlineStyleKeyboard({
       presets,
       skillId: skill.id,
       backLabel: '⬅️ Назад',
-      packId: skill.pack
+      packId: back ? skill.pack : null
     });
   }
 
   // Вопрос бытовых деталей после темы поста (скилл с wantsContext).
   function postContextKeyboard(skill) {
-    return buildInlinePostContextKeyboard({
-      skillId: skill.id,
-      backLabel: '⬅️ Назад',
-      packId: skill.pack
-    });
+    return buildInlinePostContextKeyboard({ skillId: skill.id });
   }
 
   // Стиль с необязательной формой (Пушкин): спрашиваем «стихи или проза?».
@@ -356,16 +352,14 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       const skill = registry.findSkillById(meta.skillId);
       const presets = skill?.presets || skill?.resultPresets || null;
 
-      // «Назад» под результатом — инлайн-кнопкой в меню раздела (callback),
-      // поэтому ограничение reply-меню VK здесь не мешает.
+      // «Назад» под результатом не даём — навигация через меню раздела.
       // VK: в инлайн-клавиатуре максимум 10 кнопок. Поэтому стили не подмешиваем
       // к реакциям, а шлём отдельным сообщением под результатом.
-      const back = skill?.pack ? { label: '⬅️ Назад', packId: skill.pack } : null;
-      const feedback = generation ? buildInlineFeedbackKeyboard(generation.id, null, back) : undefined;
+      const feedback = generation ? buildInlineFeedbackKeyboard(generation.id, null, null) : undefined;
       await send(context, reply, null, feedback);
 
       if (presets) {
-        await send(context, 'Можно переделать в другом стиле:', null, styleKeyboard(skill, presets));
+        await send(context, 'Можно переделать в другом стиле:', null, styleKeyboard(skill, presets, { back: false }));
       }
 
       return { reply, refused };

@@ -402,7 +402,7 @@ describe('движок: пресеты стиля', () => {
 
     const kb = JSON.parse(topicMessage.send.mock.calls[0][1].keyboard.toString());
     const labels = kb.buttons.flat().map((b) => b.action.label);
-    expect(labels).toEqual(['🎲 Придумай сам', '⬅️ Назад']);
+    expect(labels).toEqual(['🎲 Придумай сам']);
 
     await engine.handleMessage(message(senderId, 'проспал, за окном слякоть'));
     expect(provider.chat).toHaveBeenCalledTimes(1);
@@ -447,7 +447,7 @@ describe('движок: пресеты стиля', () => {
     const labels = keyboard.buttons.flat().map((b) => b.action.label);
     expect(labels).toContain('💼 Деловой');
     expect(labels).toContain('❓ Помощь');
-    expect(labels).toContain('⬅️ Назад');
+    expect(labels).not.toContain('⬅️ Назад');
   });
 
   it('пост: кнопка стиля под результатом перегенерирует пост в этом стиле', async () => {
@@ -562,7 +562,7 @@ describe('движок: пресеты стиля', () => {
     expect(prompt).toContain('личного блога');
   });
 
-  it('под результатом есть «Назад» в меню раздела', async () => {
+  it('под результатом нет «Назад» — только реакции', async () => {
     const { engine, message } = makeHarness();
     const senderId = 809;
 
@@ -576,8 +576,8 @@ describe('движок: пресеты стиля', () => {
       const payload = typeof b.action.payload === 'string' ? JSON.parse(b.action.payload) : b.action.payload;
       return payload.a === 'back';
     });
-    expect(hasBack).toBe(true);
-    expect(keyboard.buttons.flat().map((b) => b.action.label)).toEqual(['👍', '👎', '🔄 Заново', '⬅️ Назад']);
+    expect(hasBack).toBe(false);
+    expect(keyboard.buttons.flat().map((b) => b.action.label)).toEqual(['👍', '👎', '🔄 Заново']);
   });
 
   it('без пресета промпт не содержит блок стиля', async () => {

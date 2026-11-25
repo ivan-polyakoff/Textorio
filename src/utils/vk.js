@@ -117,11 +117,13 @@ function buildInlineStyleKeyboard({ presets, skillId, backLabel, packId }) {
     payload: { a: 'styleHelp', s: skillId },
     color: Keyboard.SECONDARY_COLOR
   });
-  builder.callbackButton({
-    label: backLabel,
-    payload: { a: 'back', pk: packId },
-    color: Keyboard.SECONDARY_COLOR
-  });
+  if (packId) {
+    builder.callbackButton({
+      label: backLabel || '⬅️ Назад',
+      payload: { a: 'back', pk: packId },
+      color: Keyboard.SECONDARY_COLOR
+    });
+  }
   builder.inline(true);
   return builder;
 }
@@ -138,11 +140,13 @@ function buildInlinePostContextKeyboard({ skillId, backLabel, packId }) {
     payload: { a: 'postctx', s: skillId },
     color: Keyboard.PRIMARY_COLOR
   });
-  builder.callbackButton({
-    label: backLabel || '⬅️ Назад',
-    payload: { a: 'back', pk: packId },
-    color: Keyboard.SECONDARY_COLOR
-  });
+  if (packId) {
+    builder.callbackButton({
+      label: backLabel || '⬅️ Назад',
+      payload: { a: 'back', pk: packId },
+      color: Keyboard.SECONDARY_COLOR
+    });
+  }
   builder.inline(true);
   return builder;
 }
