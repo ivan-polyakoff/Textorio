@@ -196,10 +196,19 @@ function createGigaChatProvider(config) {
    * Генерация текста. Ошибки не бросаются наружу — возвращается
    * дружелюбное сообщение (поведение прежнего generateText).
    */
+  // system-сообщение идёт отдельно от пользовательского текста: строгие
+  // фильтры моделей не принимают правила безопасности за саму просьбу.
+  function buildMessages(content, system) {
+    const messages = [];
+    if (system) messages.push({ role: 'system', content: system });
+    messages.push({ role: 'user', content });
+    return messages;
+  }
+
   async function chat(text, options = {}) {
     try {
       return await chatCompletion(
-        [{ role: 'user', content: text }],
+        buildMessages(text, options.system),
         options.model || config.textModel,
         'Запрос к GigaChat'
       );
@@ -252,8 +261,12 @@ function createGigaChatProvider(config) {
     const fileId = await uploadImageToFilesApi({ buffer, contentType });
     const promptText = options.prompt || 'Опиши изображение.';
 
+    const messages = [];
+    if (options.system) messages.push({ role: 'system', content: options.system });
+    messages.push({ role: 'user', content: promptText, attachments: [fileId] });
+
     return chatCompletion(
-      [{ role: 'user', content: promptText, attachments: [fileId] }],
+      messages,
       options.model || config.visionModel,
       'Запрос к GigaChat Vision'
     );

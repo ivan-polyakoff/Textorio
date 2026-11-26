@@ -178,7 +178,6 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     const parts = [];
 
     if (skill.kind === 'photo') {
-      parts.push(SAFETY_RULES);
       parts.push('Перепиши пост для социальной сети по правке пользователя. Исходное фото больше недоступно — опирайся на предыдущий вариант поста.');
       parts.push(`Предыдущий вариант поста:\n${generation.result}`);
     } else {
@@ -221,7 +220,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     await runGeneration(context, null, () => {
       const prompt = buildRevisionPrompt(skill, generation, critique, context.senderId);
       logPrompt(`${skill.id}:revision`, prompt, context.senderId);
-      return provider.chat(prompt);
+      return provider.chat(prompt, { system: SAFETY_RULES });
     }, {
       skillId: skill.id,
       kind: skill.kind,
@@ -288,7 +287,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     await runGeneration(
       context,
       null,
-      () => provider.chat(buildPresetPrompt(skill, generation, preset, context.senderId, input.verse)),
+      () => provider.chat(buildPresetPrompt(skill, generation, preset, context.senderId, input.verse), { system: SAFETY_RULES }),
       {
         skillId: skill.id,
         kind: skill.kind,
@@ -374,7 +373,7 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
     const preset = (skill.presets || skill.resultPresets || []).find((item) => item.id === input.preset) || null;
     const prompt = applyStyleHint(skill.prompt(input.text, preset, { verse: input.verse, context: input.context }), senderId);
     logPrompt(`${skill.id}${preset ? `:${preset.id}` : ''}`, prompt, senderId);
-    return provider.chat(prompt);
+    return provider.chat(prompt, { system: SAFETY_RULES });
   }
 
   async function generateByPhoto(skill, photoUrls, caption, senderId) {
@@ -384,7 +383,8 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       logPrompt(`${skill.id}:photo`, prompt, senderId);
       return await provider.vision(image.buffer, image.contentType, caption, {
         // Без карточки стиля: она описывает прошлые кадры и сбивает модель.
-        prompt
+        prompt,
+        system: SAFETY_RULES
       });
     } catch (error) {
       if (error.stage === 'photo_size') {
@@ -419,7 +419,8 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
       const prompt = applyStyleHint(skill.prompt(text), senderId);
       logPrompt(`${skill.id}:vision`, prompt, senderId);
       return await provider.vision(image.buffer, image.contentType, text, {
-        prompt
+        prompt,
+        system: SAFETY_RULES
       });
     } catch (error) {
       if (error.stage === 'photo_size') {
@@ -899,11 +900,11 @@ function createBotEngine({ vk, provider, assistant, registry, personaId, profile
         const history = profileStore ? getHistory(profileStore.load(context.senderId)) : [];
         const historyText = history.length > 0 ? buildTranscript(history) : null;
         const prompt = historyText
-          ? persona.historyWrapper(text, systemPrompt, historyText)
-          : persona.replyWrapper(text, systemPrompt);
+          ? persona.historyWrapper(text, historyText)
+          : persona.replyWrapper(text);
 
-        logPrompt('chat', prompt, context.senderId);
-        const { reply, refused } = await runGeneration(context, registry.mainMenuRows(), () => provider.chat(prompt));
+        logPrompt('chat', `[system]\n${systemPrompt}\n\n[user]\n${prompt}`, context.senderId);
+        const { reply, refused } = await runGeneration(context, registry.mainMenuRows(), () => provider.chat(prompt, { system: systemPrompt }));
 
         // В историю пишем только осмысленные ответы: отказы и ошибки — нет.
         const isStorable = profileStore && reply && !refused && !isModelRefusal(reply) && reply !== GENERIC_ERROR_TEXT;

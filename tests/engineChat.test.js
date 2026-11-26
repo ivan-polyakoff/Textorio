@@ -88,7 +88,7 @@ describe('движок: бизнес-скиллы с опциональным ф
     // Текст без фото — chat
     await engine.handleMessage({ senderId, peerId: senderId, text: '/товар эко-сумка из хлопка', attachments: [], send });
     await sleep(5);
-    expect(provider.chat).toHaveBeenCalledWith(expect.stringContaining('эко-сумка'));
+    expect(provider.chat.mock.calls.some(([prompt]) => prompt.includes('эко-сумка'))).toBe(true);
     expect(provider.vision).not.toHaveBeenCalled();
 
     // Фото + комментарий — vision (сначала триггер ставит состояние)

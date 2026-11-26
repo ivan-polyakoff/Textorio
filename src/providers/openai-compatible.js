@@ -73,10 +73,17 @@ function createOpenAiCompatibleProvider(config) {
    * Генерация текста. Ошибки не бросаются наружу — возвращается
    * дружелюбное сообщение (единое поведение всех провайдеров).
    */
+  function buildMessages(content, system) {
+    const messages = [];
+    if (system) messages.push({ role: 'system', content: system });
+    messages.push({ role: 'user', content });
+    return messages;
+  }
+
   async function chat(text, options = {}) {
     try {
       return await chatCompletion(
-        [{ role: 'user', content: text }],
+        buildMessages(text, options.system),
         options.model || config.textModel
       );
     } catch (error) {
@@ -92,15 +99,10 @@ function createOpenAiCompatibleProvider(config) {
   async function vision(buffer, contentType, caption = '', options = {}) {
     const promptText = options.prompt || 'Опиши изображение.';
 
-    return chatCompletion([
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: promptText },
-          { type: 'image_url', image_url: { url: toDataUrl(buffer, contentType) } }
-        ]
-      }
-    ], options.model || config.visionModel);
+    return chatCompletion(buildMessages([
+      { type: 'text', text: promptText },
+      { type: 'image_url', image_url: { url: toDataUrl(buffer, contentType) } }
+    ], options.system), options.model || config.visionModel);
   }
 
   return {

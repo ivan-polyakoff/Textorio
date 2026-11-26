@@ -76,6 +76,31 @@ describe('openai-compatible провайдер', () => {
     );
   });
 
+  it('chat() выносит системный промпт в отдельное сообщение system', async () => {
+    mockResponse('ok');
+    const provider = createOpenAiCompatibleProvider(makeConfig());
+
+    await provider.chat('Вопрос', { system: 'Правила' });
+
+    const [, body] = postMock.mock.calls[0];
+    expect(body.messages).toEqual([
+      { role: 'system', content: 'Правила' },
+      { role: 'user', content: 'Вопрос' }
+    ]);
+  });
+
+  it('vision() выносит системный промпт в отдельное сообщение system', async () => {
+    mockResponse('описание');
+    const provider = createOpenAiCompatibleProvider(makeConfig());
+    const buffer = Buffer.from('fake-image-bytes');
+
+    await provider.vision(buffer, 'image/png', '', { prompt: 'Опиши фото', system: 'Правила' });
+
+    const [, body] = postMock.mock.calls[0];
+    expect(body.messages[0]).toEqual({ role: 'system', content: 'Правила' });
+    expect(body.messages[1].content[0]).toEqual({ type: 'text', text: 'Опиши фото' });
+  });
+
   it('chat() при ошибке возвращает дружелюбный текст, а не бросает', async () => {
     postMock.mockRejectedValue({ response: { status: 500, data: 'boom' } });
     const provider = createOpenAiCompatibleProvider(makeConfig());

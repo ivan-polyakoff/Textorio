@@ -126,7 +126,7 @@ describe('движок: подмена отказов модели', () => {
 });
 
 describe('движок: правила безопасности в промптах', () => {
-  it('промпт скилла содержит правила безопасности', async () => {
+  it('промпт скилла получает правила отдельным system-сообщением', async () => {
     const { engine, provider, message } = makeHarness();
     const senderId = 221;
 
@@ -136,15 +136,22 @@ describe('движок: правила безопасности в промпт�
     await engine.handleMessage(message(senderId, 'утро, слякоть'));
 
     expect(provider.chat).toHaveBeenCalledTimes(1);
-    expect(provider.chat.mock.calls[0][0]).toContain(SAFETY_RULES);
+    const [prompt, options] = provider.chat.mock.calls[0];
+    expect(options?.system).toContain(SAFETY_RULES);
+    // В user-промпте правил быть не должно: строгие фильтры моделей
+    // принимают перечисление запрещённых тем за саму просьбу.
+    expect(prompt).not.toContain(SAFETY_RULES);
   });
 
-  it('свободный чат получает правила безопасности через персону', async () => {
+  it('свободный чат передаёт персону (с правилами) в system', async () => {
     const { engine, provider, message } = makeHarness();
 
     await engine.handleMessage(message(222, 'привет'));
 
     expect(provider.chat).toHaveBeenCalledTimes(1);
-    expect(provider.chat.mock.calls[0][0]).toContain(SAFETY_RULES);
+    const [prompt, options] = provider.chat.mock.calls[0];
+    expect(options?.system).toContain(SAFETY_RULES);
+    expect(prompt).not.toContain(SAFETY_RULES);
   });
+
 });
